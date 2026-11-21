@@ -317,17 +317,6 @@ end
 
 -- --- The strip ----------------------------------------------------------------------------------------------
 
--- The slot at the head of a tab: a ring that turns while the page loads, and nothing while it does not (a
--- picture of the page would be a favicon, which is not here). It keeps its twelve points either way, so that
--- a tab's title does not move when the load ends.
-local function slot(tab)
-	local box = b.div():id("tab-slot/" .. tab.key):size(12, 12):no_shrink():items_center():justify_center()
-	if tab.state ~= nil and tab.state.loading then
-		return box:child(kit.spinner(12, "dim"))
-	end
-	return box
-end
-
 local function tip_of(tab)
 	local title, shown = tabs.title_of(tab), address.display(tabs.url_of(tab))
 	if shown ~= "" and shown ~= title then
@@ -340,7 +329,9 @@ function tabs.view()
 	local t = u.theme
 	local items = {}
 	for _, tab in S.tabs do
-		items[#items + 1] = { key = tab.key, title = tabs.title_of(tab), icon = slot(tab), tip = tip_of(tab) }
+		-- No icon: a tab starts with its title (a site's icon is not given the page, and an empty place or a
+		-- dot in its stead says nothing). The page that loads is shown by the bar's line.
+		items[#items + 1] = { key = tab.key, title = tabs.title_of(tab), tip = tip_of(tab) }
 	end
 	local strip = u:tabs("tabs", { items = items, active = S.active, reorder = true })
 	local plus = u:icon_button("new-tab", {

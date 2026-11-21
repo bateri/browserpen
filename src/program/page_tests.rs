@@ -1158,23 +1158,15 @@ fn the_list_of_commands_and_the_sheet_of_shortcuts_are_made_of_the_one_table() {
 
 /// The places of the bars: where each is, as the page says it.
 fn places(page: &Page) -> Vec<(String, [f32; 4])> {
-    // The slot at the head of the first tab is where its title starts: it keeps its place, empty or turning.
-    [
-        "back",
-        "forward",
-        "reload",
-        "address-box",
-        "new-tab",
-        "tab-slot/tab-1",
-    ]
-    .iter()
-    .map(|name| {
-        let at = page
-            .bounds(name)
-            .unwrap_or_else(|| panic!("{name} is not on the page"));
-        ((*name).to_owned(), [at.x, at.y, at.w, at.h])
-    })
-    .collect()
+    ["back", "forward", "reload", "address-box", "new-tab"]
+        .iter()
+        .map(|name| {
+            let at = page
+                .bounds(name)
+                .unwrap_or_else(|| panic!("{name} is not on the page"));
+            ((*name).to_owned(), [at.x, at.y, at.w, at.h])
+        })
+        .collect()
 }
 
 #[test]
