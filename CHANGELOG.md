@@ -15,7 +15,8 @@
 - **`browserpen [URL] [--profile NAME]`.** `3000` and `:3000` are `localhost:3000`; words that are not
   an address are a search. What the sites keep stays under the profile from one run to the next.
 - **A page that did not load says why,** and where the address is a port nothing listens on, that
-  nothing does yet (and when something starts to).
+  nothing does yet, and the page loads by itself when something starts to. A search the browser
+  cannot make (too long) says so in the find bar.
 - **Every key is on the screen** (`F1` lists the commands, `⌘?` the shortcuts). The tab keys, `⌘L`,
   `⌘R` and `⌃Q` are browserpen's wherever the keyboard is; `⌘F`, `⌘G`, `⌘←`, `⌘→` and the zoom keys
   are too, unless the web page uses them.

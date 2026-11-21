@@ -100,6 +100,7 @@ end
 
 -- Looks for `pattern` in the page of `tab`; an empty one ends the search.
 function browse.find(tab, pattern, case)
+	S.find.asked = pattern
 	ask(tab, { command = "find", pattern = pattern, case = case })
 end
 
@@ -129,13 +130,11 @@ end
 -- --- Nothing is listening ---------------------------------------------------------------------------------------
 
 -- Looks at the port of a `localhost` address that did not load, and again while it stays so: the card says
--- that nothing is listening on it (`tab.nothing`, the port) until something answers, then that something
--- is (`tab.answers`), and Reload is the person's. Whether anything answers is the program's to say: the
--- list of ports is the person's own processes', and a server that root or a container holds is there all
--- the same. When something starts to answer the page also asks the browser to go to the address again,
--- as the plan has it; under pencere's host with no screen (`pencere-drive`, at the commit Cargo.lock
--- takes) a browser's ask in the reply to a timer or to the program's answer is not delivered (the reply
--- to what the person did or the browser said is), so there the card and Reload are what the person has.
+-- that nothing is listening on it (`tab.nothing`, the port) until something answers, and then the page asks the
+-- browser to go to the address again, as it would for a person who pressed Reload: the card says that
+-- something is listening (`tab.answers`) until the browser reports the new load, and Reload is the person's
+-- where it fails again. Whether anything answers is the program's to say: the list of ports is the person's own
+-- processes', and a server that root or a container holds is there all the same.
 local function watch(tab, failed)
 	local port = address.local_port(failed.url)
 	if port == nil then

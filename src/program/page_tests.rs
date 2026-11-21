@@ -615,6 +615,48 @@ fn escape_stops_a_load_and_takes_the_find_bar_and_the_lists_away_and_leaves_the_
 
 #[test]
 #[ignore = "opens the kit's interpreter: make test-page"]
+fn a_search_the_host_refuses_is_said_in_the_find_bar_and_not_as_an_address() {
+    let (_stand, _session, mut page) = at_a_page();
+    key(&mut page, "cmd+f");
+    page.fill("find/field", "needle").expect("typed");
+    page.advance(0.2).expect("settled");
+    tell(&mut page, "tab-1", |state| {
+        state.url = "http://localhost:3000/".to_owned();
+        state.found = Some(BrowserFound {
+            count: 12,
+            current: Some(3),
+        });
+    });
+    assert!(page.says("3 of 12"), "{}", said(&page));
+    // Longer than a browser is asked to find (1024 bytes): the host refuses it.
+    page.fill("find/field", &"a".repeat(1100)).expect("pasted");
+    page.advance(0.2).expect("settled");
+    assert!(page.says("Not valid"), "{}", said(&page));
+    assert!(
+        !page.says("3 of 12") && !page.says("not an address"),
+        "{}",
+        said(&page)
+    );
+    // With a control character in it, the same.
+    page.fill("find/field", "a\u{7}b").expect("typed");
+    page.advance(0.2).expect("settled");
+    assert!(page.says("Not valid"), "{}", said(&page));
+    // What the browser can find is found again, and the bar says what it found.
+    page.fill("find/field", "needle").expect("typed");
+    page.advance(0.2).expect("settled");
+    assert!(!page.says("Not valid"), "{}", said(&page));
+    tell(&mut page, "tab-1", |state| {
+        state.url = "http://localhost:3000/".to_owned();
+        state.found = Some(BrowserFound {
+            count: 2,
+            current: Some(1),
+        });
+    });
+    assert!(page.says("1 of 2"), "{}", said(&page));
+}
+
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
 fn the_find_bar_asks_the_browser_and_says_what_it_found() {
     let (_stand, _session, mut page) = at_a_page();
     key(&mut page, "cmd+f");
@@ -753,12 +795,18 @@ fn a_browser_that_stopped_or_has_no_way_is_a_card_with_the_hosts_sentence() {
 
 #[test]
 #[ignore = "opens the kit's interpreter: make test-page"]
-fn a_port_nothing_listens_on_is_said_so_and_then_that_something_is_and_reload_loads_it() {
+fn a_port_nothing_listens_on_is_said_so_and_the_page_goes_there_by_itself_once_something_does() {
     let (stand, _session, mut page) = at_a_page();
     let failed = || BrowserError {
         url: "http://localhost:4000/".to_owned(),
         code: -102,
         message: "Connection refused".to_owned(),
+    };
+    let goes = |page: &Page| {
+        asked_of(page, "tab-1")
+            .iter()
+            .filter(|ask| **ask == BrowserAsk::Go("http://localhost:4000/".to_owned()))
+            .count()
     };
     tell(&mut page, "tab-1", |state| {
         state.url = "http://localhost:4000/".to_owned();
@@ -770,12 +818,41 @@ fn a_port_nothing_listens_on_is_said_so_and_then_that_something_is_and_reload_lo
     .expect("said");
     assert!(!page.says("Connection refused"), "{}", said(&page));
     assert!(stand.probed().contains(&4000));
+    assert_eq!(goes(&page), 0);
+    // A server starts: the page asks the browser to go there again, as a person would with Reload,
+    // and says that something is listening while it does.
     stand.listen(4000, "dev-server");
     page.advance(1.6).expect("time passes");
+    page.wait_for(WITHIN, |page| goes(page) == 1)
+        .expect("it goes");
+    assert!(
+        page.says("Something is listening on :4000 now"),
+        "{}",
+        said(&page)
+    );
+    // The browser loads it: no error, no card.
+    tell(&mut page, "tab-1", |state| {
+        state.url = "http://localhost:4000/".to_owned();
+        state.loading = true;
+    });
+    page.advance(0.2).expect("settled");
+    assert!(
+        !page.says("Something is listening") && !page.says("Nothing is listening"),
+        "{}",
+        said(&page)
+    );
+    // Where that fails again, the page does not go on asking: the card says so and Reload is the
+    // person's.
+    tell(&mut page, "tab-1", |state| {
+        state.url = "http://localhost:4000/".to_owned();
+        state.error = Some(failed());
+    });
     page.wait_for(WITHIN, |page| {
         page.says("Something is listening on :4000 now")
     })
     .expect("said again");
+    page.advance(3.2).expect("time passes");
+    assert_eq!(goes(&page), 1, "{:?}", asked_of(&page, "tab-1"));
     page.click("card-reload").expect("reload");
     assert!(
         asked_of(&page, "tab-1").contains(&BrowserAsk::Reload { cache: true }),
@@ -1224,24 +1301,20 @@ fn no_key_of_the_command_table_is_a_shift_with_a_mark_or_a_digit() {
     }
 }
 
-/// What the page's "something is listening now" card does by hand (`browse.lua`, `watch`) is for this:
-/// at the pencere commit Cargo.lock holds, a browser's ask in the reply to a timer is not delivered to
-/// the host (the timer ran: the page changed), while the same ask in the reply to a key is. When this
-/// fails, the host delivers it: `watch` can ask `Reload` itself and the card can go.
+/// What a page asks of its browsers in the reply to a timer reaches the host as it does in the reply to a
+/// key (pencere `b452c9d`): the page goes to a server it found listening (`browse.lua`, `watch`) by it.
 #[test]
 #[ignore = "opens the kit's interpreter: make test-page"]
-fn a_browsers_ask_in_the_reply_to_a_timer_does_not_reach_the_host_at_this_pin() {
+fn a_browsers_ask_in_the_reply_to_a_timer_reaches_the_host_as_one_to_a_key_does() {
     use pencere_view::{Key, Mods};
     let source = r#"
-local fired = false
 return {
 	render = function()
-		return pencere.div():child(pencere.text(fired and "fired" or "waiting")):child(pencere.browser("web"))
+		return pencere.div():child(pencere.browser("web"))
 	end,
 	handle = function(event)
 		if event.type == "key" and event.key == "y" then
 			pencere.time.after(0.1, function()
-				fired = true
 				return { browser = { web = { go = "https://timer.example/" } } }
 			end)
 			return true
@@ -1258,12 +1331,75 @@ return {
     page.key(Key::Character('y'), Mods::default())
         .expect("arms");
     page.advance(0.5).expect("the timer runs");
-    assert!(page.browser_asks().is_empty(), "{:?}", page.browser_asks());
-    page.key(Key::Character('y'), Mods::default())
-        .expect("draws again");
-    assert!(page.says("fired"), "{:?}", page.words());
+    assert_eq!(
+        page.browser_asks()
+            .iter()
+            .map(|(_, ask)| ask.clone())
+            .collect::<Vec<_>>(),
+        [BrowserAsk::Go("https://timer.example/".to_owned())]
+    );
     page.key(Key::Character('x'), Mods::default()).expect("key");
-    assert_eq!(page.browser_asks().len(), 1, "{:?}", page.browser_asks());
+    assert_eq!(page.browser_asks().len(), 2, "{:?}", page.browser_asks());
+}
+
+/// Two asks of a browser put into one reply (`kit.gather`) go once each and in the order they were
+/// decided, and so do the asks of two browsers: the kit's `merge` keeps them all, and the page puts none
+/// together by hand on top of it.
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
+fn asks_gathered_into_one_reply_go_once_each_and_in_order() {
+    use pencere_drive::headless::Files;
+    use pencere_view::{Key, Mods};
+    let dir = tempfile::tempdir().expect("a directory");
+    std::fs::create_dir_all(dir.path().join("lib")).expect("lib");
+    std::fs::copy(
+        concat!(env!("CARGO_MANIFEST_DIR"), "/src/view/lib/kit.lua"),
+        dir.path().join("lib/kit.lua"),
+    )
+    .expect("the page's kit module");
+    std::fs::write(
+        dir.path().join("page.lua"),
+        r#"
+local kit = require("./lib/kit")
+local b = kit.b
+return {
+	render = function()
+		return b.div():child(b.browser("web")):child(b.browser("other"))
+	end,
+	handle = function(event)
+		if event.type == "key" then
+			kit.gather({ redraw = true, browser = { web = { { go = "https://a.test/" } } } })
+			kit.gather({ redraw = true, browser = { web = { { command = "reload", cache = true } } } })
+			kit.gather({ redraw = true, browser = { other = { { zoom = 1.5 } } } })
+			kit.gather({ redraw = true, browser = { web = { zoom = 2 } } })
+			return kit.take(true)
+		end
+	end,
+}
+"#,
+    )
+    .expect("the test page");
+    let mut page = Headless::bundle(Files::dir(dir.path()), "page.lua")
+        .size(800.0, 600.0)
+        .open()
+        .expect("opens");
+    page.key(Key::Character('x'), Mods::default()).expect("key");
+    let of = |name: &str| -> Vec<BrowserAsk> {
+        page.browser_asks()
+            .iter()
+            .filter(|(id, _)| *id == Id::named(name))
+            .map(|(_, ask)| ask.clone())
+            .collect()
+    };
+    assert_eq!(
+        of("web"),
+        [
+            BrowserAsk::Go("https://a.test/".to_owned()),
+            BrowserAsk::Reload { cache: true },
+            BrowserAsk::Zoom(2.0),
+        ]
+    );
+    assert_eq!(of("other"), [BrowserAsk::Zoom(1.5)]);
 }
 
 #[test]

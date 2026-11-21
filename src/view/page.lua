@@ -309,6 +309,9 @@ local function handle(event)
 	elseif kind == "browser_refused" then
 		if event.reason == "ask" then
 			kit.toast("This terminal does not know that yet.", "warn")
+		elseif event.reason == "pattern" then
+			-- A search the host would not make: the find bar says so where it says the count.
+			S.find.refused = S.find.asked
 		else
 			kit.toast("That is not an address a browser can open.", "warn")
 		end

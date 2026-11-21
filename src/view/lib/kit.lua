@@ -69,32 +69,9 @@ local SIZE = {
 
 local gathered = nil
 
--- An ask of a browser, or a list of them, as a list.
-local function asks_of(value)
-	if value[1] == nil then
-		return { value }
-	end
-	return value
-end
-
--- The kit puts two replies' `browser` together by taking the second's: what the page asks of a browser
--- in one reply is all of it, in the order it was decided, so the asks are put together here.
+-- Puts `reply` with what was gathered. The kit's `merge` keeps the asks of both replies' `browser`
+-- (each of every tab, in the order they were decided), so two asks of a browser go once each.
 local function gather(reply)
-	if type(reply) == "table" and type(reply.browser) == "table" and gathered ~= nil and type(gathered.browser) == "table" then
-		local merged = {}
-		for name, asks in gathered.browser do
-			merged[name] = table.clone(asks_of(asks))
-		end
-		for name, asks in reply.browser do
-			local list = merged[name] or {}
-			for _, ask in asks_of(asks) do
-				list[#list + 1] = ask
-			end
-			merged[name] = list
-		end
-		reply = table.clone(reply)
-		reply.browser = merged
-	end
 	gathered = b.merge(gathered, reply)
 end
 

@@ -47,7 +47,12 @@ end
 -- What the browser says it found, in words.
 local function count_words(tab)
 	local found = tab and tab.state and tab.state.found
-	if S.find.query.value == "" or found == nil then
+	if S.find.query.value == "" then
+		return ""
+	elseif S.find.refused == S.find.query.value then
+		-- The host refused what was asked (too long, or with a control character in it).
+		return "Not valid"
+	elseif found == nil then
 		return ""
 	elseif found.current == nil then
 		return "No matches"
