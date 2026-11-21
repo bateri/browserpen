@@ -16,7 +16,8 @@ use std::time::Duration;
 use pencere::ViewControl;
 use pencere_drive::headless::{Error, Focus, Headless, InProcess};
 use pencere_view::{
-    BrowserAsk, BrowserError, BrowserFound, BrowserState, Id, KeyConvention, MenuEntry, Point,
+    BrowserAsk, BrowserError, BrowserFound, BrowserState, Id, Key, KeyConvention, MenuEntry, Mods,
+    Point,
 };
 
 use crate::machine::{Listener, Machine};
@@ -1494,49 +1495,96 @@ fn the_suggestions_do_not_wait_when_the_page_itself_takes_the_keyboard_to_anothe
     assert!(!page.says(":3000"), "{}", said(&page));
 }
 
-#[test]
-#[ignore = "opens the kit's interpreter: make test-page"]
-fn the_suggestions_the_keyboard_left_go_when_the_press_is_elsewhere_or_does_not_come() {
-    // A press on the page's own parts that is not on a row closes the card, and goes nowhere.
-    let (_stand, _session, mut page) = at_a_page();
+/// A page with tab 1 at localhost:3000, "51" written in the address field, its suggestions in a card, and the
+/// keyboard let go of the field by the host (what a press on the page does before the press is told).
+fn with_the_keyboard_let_go_of_the_field() -> (Arc<Stand>, Arc<Session>, Page) {
+    let (stand, session, mut page) = at_a_page();
     page.press("cmd+l").expect("address");
     page.fill("address/field", "51").expect("typed");
     page.advance(0.2).expect("settled");
     the_keyboard_leaves_the_field(&mut page);
+    assert!(page.says(":5173"), "the card waits: {}", said(&page));
+    (stand, session, page)
+}
+
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
+fn the_suggestions_the_keyboard_let_go_of_stay_for_a_press_and_a_press_elsewhere_closes_them_at_once()
+ {
+    // What the browser says meanwhile (it loads, a title comes) does not close them.
+    let (_stand, _session, mut page) = with_the_keyboard_let_go_of_the_field();
+    tell(&mut page, "tab-1", |state| {
+        state.url = "http://localhost:3000/".to_owned();
+        state.title = "App again".to_owned();
+    });
     assert!(page.says(":5173"), "{}", said(&page));
+
+    // A press on the page's own parts that is not on a row: they close in the frame of the press.
+    let (_stand, _session, mut page) = with_the_keyboard_let_go_of_the_field();
     page.click_at(Point::new(1050.0, 12.0))
         .expect("a click in the strip of tabs");
-    page.advance(0.1).expect("the field filled");
     assert!(!page.says(":5173"), "{}", said(&page));
     assert!(
         !went_to(&page, "tab-1", "http://localhost:5173/"),
         "{:?}",
         asked_of(&page, "tab-1")
     );
+    page.advance(0.1).expect("the field filled");
     assert_eq!(page.field("address/field"), Some("localhost:3000"));
 
-    // No press comes (the keyboard went elsewhere of itself): the card does not stay.
-    let (_stand, _session, mut page) = at_a_page();
-    page.press("cmd+l").expect("address");
-    page.fill("address/field", "51").expect("typed");
-    page.advance(0.2).expect("settled");
-    the_keyboard_leaves_the_field(&mut page);
-    assert!(page.says(":5173"), "{}", said(&page));
-    page.advance(1.0).expect("a second");
-    assert!(!page.says(":5173"), "{}", said(&page));
-    assert_eq!(page.field("address/field"), Some("localhost:3000"));
-
-    // A press in the browser is the browser's, and the page is not told of it: the card goes with the time.
-    let (_stand, _session, mut page) = at_a_page();
-    page.press("cmd+l").expect("address");
-    page.fill("address/field", "51").expect("typed");
-    page.advance(0.2).expect("settled");
-    the_keyboard_leaves_the_field(&mut page);
+    // A press on the browser's room is the browser's and the page is told only that the keyboard is its.
+    let (_stand, _session, mut page) = with_the_keyboard_let_go_of_the_field();
     page.click_at(Point::new(700.0, 600.0))
         .expect("a click in the browser");
-    page.advance(1.0).expect("a second");
     assert!(!page.says(":5173"), "{}", said(&page));
+    assert_eq!(keyboard(&page), format!("{:?}", Id::named("tab-1")));
+    page.advance(0.1).expect("the field filled");
     assert_eq!(page.field("address/field"), Some("localhost:3000"));
+
+    // The keyboard going to a browser by itself does the same.
+    let (_stand, _session, mut page) = with_the_keyboard_let_go_of_the_field();
+    page.page_mut().focus(Some(Id::named("tab-1")));
+    page.settle().expect("settled");
+    assert!(!page.says(":5173"), "{}", said(&page));
+}
+
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
+fn esc_and_enter_and_a_change_of_tab_close_the_suggestions_the_keyboard_let_go_of() {
+    // The keyboard is the page's now, so the key is told to the page (the headless host still holds the
+    // field it let go of as the keyboard's). Esc ends what was written; Enter, as in the field, goes to it.
+    for key in [Key::Escape, Key::Enter] {
+        let (_stand, _session, mut page) = with_the_keyboard_let_go_of_the_field();
+        page.page_mut().key(key, Mods::default());
+        page.settle().expect("settled");
+        assert!(!page.says(":5173"), "{key:?}: {}", said(&page));
+        assert_eq!(keyboard(&page), format!("{:?}", Id::named("tab-1")));
+        assert!(
+            !went_to(&page, "tab-1", "http://localhost:5173/"),
+            "{key:?}: {:?}",
+            asked_of(&page, "tab-1")
+        );
+        if key == Key::Escape {
+            page.advance(0.1).expect("the field filled");
+            assert_eq!(page.field("address/field"), Some("localhost:3000"));
+        }
+    }
+    // A change of tab ends it too.
+    let (_stand, _session, mut page) = at_a_page();
+    page.press("ctrl+t").expect("a new tab");
+    write_address(&mut page, "5173");
+    ready(&mut page, "tab-2", "", "");
+    tell(&mut page, "tab-2", |state| {
+        state.url = "http://localhost:5173/".to_owned();
+        state.title = "Vite".to_owned();
+    });
+    page.press("cmd+l").expect("address");
+    page.fill("address/field", "30").expect("typed");
+    page.advance(0.2).expect("settled");
+    the_keyboard_leaves_the_field(&mut page);
+    assert!(page.says(":3000"), "{}", said(&page));
+    page.press("ctrl+1").expect("tab one");
+    assert!(!page.says(":3000"), "{}", said(&page));
 }
 
 #[test]

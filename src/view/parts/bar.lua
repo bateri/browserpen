@@ -22,10 +22,23 @@ function bar.focused()
 	return u:keyboard() == field_name()
 end
 
+-- Whether the keyboard has let go of the field with what was written still there. A press on the page takes
+-- the keyboard out of the host's field before the page is told of the press, which may be on a row of the
+-- suggestions: what was written waits for the press, as a picker's card does (a press elsewhere, Esc or
+-- Enter, a change of tab, or the keyboard going to something that has a name, ends it).
+function bar.let_go()
+	return S.typed and u:keyboard() == "page"
+end
+
+-- Whether an address is being written: the keyboard is in the field, or has let go of it (`bar.let_go`).
+function bar.writing()
+	return bar.focused() or bar.let_go()
+end
+
 -- What the field says when the person is not writing in it: the address of the tab in front, with no
 -- scheme. Where the person is writing, it is left to them.
 function act.fill_address()
-	if bar.focused() then
+	if bar.writing() then
 		return
 	end
 	local tab = tabs.active()

@@ -38,9 +38,6 @@ local S = {
 	address = { value = "" },
 	typed = false,
 	select_address = false,
-	-- Whether the suggestions wait, after the keyboard left the field, for the press that took it (the
-	-- row it is on is gone there): see `page.lua`.
-	holding = false,
 	-- The suggestions of what is typed, and the row the arrow keys are on (the key of the row, nil
 	-- before they are used).
 	cursor = nil,

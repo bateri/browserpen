@@ -194,6 +194,7 @@ function tabs.select(key)
 	end
 	act.close_find(true)
 	S.active = key
+	S.typed = false
 	S.cursor = nil
 	act.fill_address()
 	tabs.focus()
@@ -237,6 +238,7 @@ function tabs.close(key)
 		act.close_find(true)
 		local next_tab = S.tabs[math.min(index, #S.tabs)]
 		S.active = next_tab.key
+		S.typed = false
 		S.cursor = nil
 		act.fill_address()
 		tabs.focus()

@@ -184,54 +184,25 @@ local function address_is_the_tab_again()
 	S.address.value = tab and address.display(tabs.url_of(tab)) or ""
 end
 
--- How long the suggestions stay, seconds, when the keyboard has left the field of itself with an address
--- half written. A press on the page takes the keyboard out of the host's field before the page is told of
--- the press (a frame is drawn between), and the press is on the row the person saw: the rows wait for it.
--- A press on one goes there, a press elsewhere closes them, and where none comes they close of themselves.
-local HOLD = 0.4
-local hold_timer = nil
-
-local function stop_holding()
-	S.holding = false
-	if hold_timer ~= nil then
-		hold_timer:cancel()
-		hold_timer = nil
-	end
-end
-
-local function hold()
-	stop_holding()
-	S.holding = true
-	hold_timer = pencere.time.after(HOLD, function()
-		hold_timer = nil
-		if not S.holding then
-			return nil
-		end
-		S.holding = false
-		address_is_the_tab_again()
-		return kit.take(true)
-	end)
-end
-
 -- The keyboard went into or out of the address field of itself (a click, a tab): what the field holds is
 -- the tab's whole address, selected, while the person is in it, and its address as it is read when they are
 -- not.
+--
+-- What is written and its suggestions are not dropped when the keyboard only lets go of the field (the page
+-- hears `focus` with no name): that comes before every press on the page, and the press may be on a row.
+-- They are dropped where the keyboard goes to a browser or to another field (it has a name then), by a press
+-- elsewhere (`handle`), by Esc and Enter (`key`), and by a change of tab (`tabs.select`).
 local was_in_address = false
 local function address_follows_keyboard()
 	local inside = bar.focused()
-	if S.holding and (inside or not S.typed) then
-		stop_holding()
-	end
 	if inside and not was_in_address and not S.typed then
 		local tab = tabs.active()
 		S.address.value = tab and tabs.url_of(tab) or ""
 		S.select_address = true
-	elseif was_in_address and not inside then
-		if S.typed and #S.rows > 0 then
-			hold()
-		else
-			address_is_the_tab_again()
-		end
+	elseif S.typed and not inside and u:keyboard() ~= "page" then
+		address_is_the_tab_again()
+	elseif was_in_address and not inside and not S.typed then
+		address_is_the_tab_again()
 	end
 	was_in_address = inside
 end
@@ -374,16 +345,13 @@ local function handle_event(event)
 	elseif POINTER_INPUTS[kind] and event.x ~= nil and event.y ~= nil then
 		pointer_at = { x = event.x, y = event.y }
 	end
-	local picked = false
 	if not taken then
 		if kind == "key" then
 			reply = b.merge(reply, key(event))
 		elseif kind == "press" and (event.button or "left") == "left" then
 			pressed_on = pencere.layout.hit({ x = event.x, y = event.y })
-			-- A row of suggestions is chosen as the press goes down, as a menu's line is: the press takes the
-			-- keyboard out of the address field, and the card under it is gone before the button is let go.
-			picked = suggest.pressed(pressed_on)
-			if picked then
+			-- A row of suggestions is chosen as the press goes down, as a menu's line is.
+			if suggest.pressed(pressed_on) then
 				pressed_on = nil
 				reply = b.merge(reply, true)
 			end
@@ -397,13 +365,14 @@ local function handle_event(event)
 			pressed_on = nil
 		end
 	end
-	if kind == "press" and S.holding then
-		-- The press the rows waited for is here: it was on a row (gone there), or it was not (they close).
-		stop_holding()
-		if not picked then
+	if kind == "press" and bar.let_go() then
+		-- A press outside the card closes it, as it does a picker's (the field's own press does not, nor does
+		-- a row's: that one has gone to its address).
+		local hit = pencere.layout.hit({ x = event.x, y = event.y })
+		if hit == nil or not (string.match(hit, "^row/") or string.match(hit, "^address")) then
 			address_is_the_tab_again()
+			reply = b.merge(reply, true)
 		end
-		reply = b.merge(reply, true)
 	end
 	if POINTER_INPUTS[kind] then
 		reply = hand(reply, pointer_at)
