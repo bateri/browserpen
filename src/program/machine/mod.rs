@@ -110,18 +110,30 @@ fn display_name(args: &[String], kernel_name: Option<&str>) -> Option<String> {
     }
 }
 
-/// Whether the executable at `path` is inside an application bundle (`Foo.app/Contents/MacOS/foo`):
-/// what the person opened from the Dock or the system started, not what a developer started in a
-/// terminal, which is what the page's list is for. A name that only ends in `.app` and is the
-/// executable itself, or a directory that only contains it (`my.app-server`), is no bundle.
+/// Whether the executable at `path` is one the person did not start in a terminal: a program inside
+/// an application bundle (`Foo.app/Contents/MacOS/foo`, what they opened from the Dock and its
+/// helpers), or one of the system's own (`/System`, `/usr/libexec`, `/usr/sbin`, `/sbin`:
+/// Control Center on :5000 and :7000, `rapportd`). The page lists what a developer started, so
+/// these are left out. A bundle inside a framework is a program's, not an app's: Python runs as
+/// `Python.framework/…/Resources/Python.app/Contents/MacOS/Python`, Homebrew's and Apple's alike,
+/// and a dev server on it is listed. A name that only ends in `.app` and is the executable itself,
+/// or a directory that only contains it (`my.app-server`), is no bundle.
 #[cfg(any(target_os = "macos", test))]
-fn in_an_app_bundle(path: &str) -> bool {
+fn started_by_the_system(path: &str) -> bool {
+    const SYSTEM: [&str; 4] = ["/System/", "/usr/libexec/", "/usr/sbin/", "/sbin/"];
+    if SYSTEM.iter().any(|dir| path.starts_with(dir)) {
+        return true;
+    }
     let mut parts: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
     // The executable itself.
     parts.pop();
-    parts
-        .iter()
-        .any(|part| part.len() > ".app".len() && part.to_ascii_lowercase().ends_with(".app"))
+    let ends_in = |part: &str, suffix: &str| {
+        part.len() > suffix.len() && part.to_ascii_lowercase().ends_with(suffix)
+    };
+    match parts.iter().position(|part| ends_in(part, ".app")) {
+        Some(app) => !parts[..app].iter().any(|part| ends_in(part, ".framework")),
+        None => false,
+    }
 }
 
 #[cfg(test)]
@@ -179,14 +191,17 @@ mod tests {
     }
 
     #[test]
-    fn a_program_inside_an_application_bundle_is_told_from_one_started_in_a_terminal() {
+    fn a_program_of_an_app_or_of_the_system_is_told_from_one_started_in_a_terminal() {
         for path in [
             "/System/Library/CoreServices/ControlCenter.app/Contents/MacOS/ControlCenter",
             "/Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
             "/Users/me/Library/Application Support/Figma/FigmaAgent.app/Contents/MacOS/FigmaAgent",
             "/Applications/Postgres.APP/Contents/Versions/17/bin/postgres",
+            "/usr/libexec/rapportd",
+            "/usr/sbin/cupsd",
+            "/sbin/launchd",
         ] {
-            assert!(in_an_app_bundle(path), "{path}");
+            assert!(started_by_the_system(path), "{path}");
         }
         for path in [
             "/opt/homebrew/bin/node",
@@ -194,10 +209,13 @@ mod tests {
             "/Users/me/Projects/my.app-server/target/debug/serve",
             "/Users/me/bin/Thing.app",
             "/Users/me/.app/serve",
+            "/opt/homebrew/Cellar/python@3.13/3.13.1/Frameworks/Python.framework/Versions/3.13/Resources/Python.app/Contents/MacOS/Python",
+            "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/Resources/Python.app/Contents/MacOS/Python",
+            "/usr/bin/python3",
             "node",
             "",
         ] {
-            assert!(!in_an_app_bundle(path), "{path}");
+            assert!(!started_by_the_system(path), "{path}");
         }
     }
 

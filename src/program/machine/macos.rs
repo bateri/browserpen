@@ -31,9 +31,9 @@ pub fn listeners() -> Vec<Listener> {
         if owner(pid) != Some(me) {
             continue;
         }
-        // What the person opened (a Dock app's helper, the system's own: Control Center on :5000 and
-        // :7000) is not what a developer started in a terminal, which is what the page lists.
-        if executable(pid).is_some_and(|path| super::in_an_app_bundle(&path)) {
+        // What the person opened (a Dock app's helper) and the system's own (Control Center on :5000
+        // and :7000, rapportd) are not what a developer started in a terminal, which the page lists.
+        if executable(pid).is_some_and(|path| super::started_by_the_system(&path)) {
             continue;
         }
         let ports = listening(pid);
