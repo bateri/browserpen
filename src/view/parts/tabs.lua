@@ -105,6 +105,10 @@ function tabs.open(url, options)
 	end
 	return tab
 end
+		-- What was being written in the address field is dropped with the keyboard (the suggestions of it
+		-- do not wait for a press that is not coming).
+		S.typed = false
+		S.cursor = nil
 
 -- Closes the tab `key`. The tab that takes its place is the one after it, else the one before; the
 -- last tab is replaced by a blank one, so that there is always a tab (⌃Q ends the program). The

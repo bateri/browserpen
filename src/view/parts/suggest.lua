@@ -80,10 +80,11 @@ local function compute()
 	return rows
 end
 
--- Whether the card under the field is shown: an address is being written on a tab that has a page.
+-- Whether the card under the field is shown: an address is being written on a tab that has a page (or
+-- was a moment ago, and the card waits for a press: `S.holding`).
 function suggest.card_shown()
 	local tab = tabs.active()
-	return tab ~= nil and not tabs.blank(tab) and bar.focused() and S.typed and #S.rows > 0
+	return tab ~= nil and not tabs.blank(tab) and (bar.focused() or S.holding) and S.typed and #S.rows > 0
 end
 
 -- Whether the arrow keys are for the rows: the lists of a blank tab or the card, with the field the

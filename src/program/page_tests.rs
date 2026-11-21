@@ -16,7 +16,7 @@ use std::time::Duration;
 use pencere::ViewControl;
 use pencere_drive::headless::{Error, Focus, Headless, InProcess};
 use pencere_view::{
-    BrowserAsk, BrowserError, BrowserFound, BrowserState, Id, KeyConvention, MenuEntry,
+    BrowserAsk, BrowserError, BrowserFound, BrowserState, Id, KeyConvention, MenuEntry, Point,
 };
 
 use crate::machine::{Listener, Machine};
@@ -1258,6 +1258,142 @@ fn the_suggestions_under_the_address_field_of_a_page_are_chosen_by_the_arrows_an
         "{:?}",
         asked_of(&page, "tab-1")
     );
+}
+
+/// Where the middle of the element named `name` is, the host's points.
+fn middle_of(page: &Page, name: &str) -> Point {
+    let rect = page.bounds(name).expect("the element is on show");
+    Point::new(rect.x + rect.w / 2.0, rect.y + rect.h / 2.0)
+}
+
+/// The host takes the keyboard out of the field, and a frame is drawn for it: what a press on the
+/// page does before the press itself is told (the headless click gives both at once).
+fn the_keyboard_leaves_the_field(page: &mut Page) {
+    page.page_mut().focus(None);
+    page.settle().expect("settled");
+}
+
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
+fn a_click_on_a_suggestion_goes_there_before_or_after_the_keyboard_leaves_the_field() {
+    // The keyboard leaves the field, a frame is drawn, and then the press is on the row.
+    let (_stand, _session, mut page) = at_a_page();
+    page.press("cmd+l").expect("address");
+    page.fill("address/field", "51").expect("typed");
+    page.advance(0.2).expect("settled");
+    let row = middle_of(&page, "row/port:5173");
+    the_keyboard_leaves_the_field(&mut page);
+    assert!(
+        page.says(":5173"),
+        "the card waits for the press: {}",
+        said(&page)
+    );
+    page.click_at(row).expect("a click where the row is");
+    assert!(
+        went_to(&page, "tab-1", "http://localhost:5173/"),
+        "{:?}",
+        asked_of(&page, "tab-1")
+    );
+    assert_eq!(keyboard(&page), format!("{:?}", Id::named("tab-1")));
+    page.advance(0.1).expect("the field filled");
+    assert!(!page.says(":5173"), "{}", said(&page));
+    assert_eq!(page.field("address/field"), Some("localhost:5173"));
+
+    // The same on a blank tab, where the rows stand in the room and what is not typed narrows them
+    // the other way: the press is where the narrowed row was.
+    let (_stand, _session, mut page) = open(WIDE);
+    page.fill("address/field", "51").expect("typed");
+    page.advance(0.2).expect("settled");
+    let row = middle_of(&page, "row/port:5173");
+    the_keyboard_leaves_the_field(&mut page);
+    page.click_at(row).expect("a click where the row is");
+    ready(&mut page, "tab-1", "", "");
+    assert!(
+        went_to(&page, "tab-1", "http://localhost:5173/"),
+        "{:?}",
+        asked_of(&page, "tab-1")
+    );
+
+    // The press first, and the keyboard leaves after it.
+    let (_stand, _session, mut page) = at_a_page();
+    page.press("cmd+l").expect("address");
+    page.fill("address/field", "51").expect("typed");
+    page.advance(0.2).expect("settled");
+    page.click("row/port:5173").expect("a click on the row");
+    the_keyboard_leaves_the_field(&mut page);
+    assert!(
+        went_to(&page, "tab-1", "http://localhost:5173/"),
+        "{:?}",
+        asked_of(&page, "tab-1")
+    );
+    page.advance(0.1).expect("the field filled");
+    assert!(!page.says(":5173"), "{}", said(&page));
+    assert_eq!(page.field("address/field"), Some("localhost:5173"));
+}
+
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
+fn the_suggestions_the_keyboard_left_go_when_the_press_is_elsewhere_or_does_not_come() {
+    // A press on the page's own parts that is not on a row closes the card, and goes nowhere.
+    let (_stand, _session, mut page) = at_a_page();
+    page.press("cmd+l").expect("address");
+    page.fill("address/field", "51").expect("typed");
+    page.advance(0.2).expect("settled");
+    the_keyboard_leaves_the_field(&mut page);
+    assert!(page.says(":5173"), "{}", said(&page));
+    page.click_at(Point::new(1050.0, 12.0))
+        .expect("a click in the strip of tabs");
+    page.advance(0.1).expect("the field filled");
+    assert!(!page.says(":5173"), "{}", said(&page));
+    assert!(
+        !went_to(&page, "tab-1", "http://localhost:5173/"),
+        "{:?}",
+        asked_of(&page, "tab-1")
+    );
+    assert_eq!(page.field("address/field"), Some("localhost:3000"));
+
+    // No press comes (the keyboard went elsewhere of itself): the card does not stay.
+    let (_stand, _session, mut page) = at_a_page();
+    page.press("cmd+l").expect("address");
+    page.fill("address/field", "51").expect("typed");
+    page.advance(0.2).expect("settled");
+    the_keyboard_leaves_the_field(&mut page);
+    assert!(page.says(":5173"), "{}", said(&page));
+    page.advance(1.0).expect("a second");
+    assert!(!page.says(":5173"), "{}", said(&page));
+    assert_eq!(page.field("address/field"), Some("localhost:3000"));
+
+    // A press in the browser is the browser's, and the page is not told of it: the card goes with the time.
+    let (_stand, _session, mut page) = at_a_page();
+    page.press("cmd+l").expect("address");
+    page.fill("address/field", "51").expect("typed");
+    page.advance(0.2).expect("settled");
+    the_keyboard_leaves_the_field(&mut page);
+    page.click_at(Point::new(700.0, 600.0))
+        .expect("a click in the browser");
+    page.advance(1.0).expect("a second");
+    assert!(!page.says(":5173"), "{}", said(&page));
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
+fn the_suggestions_do_not_wait_when_the_page_itself_takes_the_keyboard_to_another_tab() {
+    let (_stand, _session, mut page) = at_a_page();
+    page.press("ctrl+t").expect("a new tab");
+    write_address(&mut page, "5173");
+    ready(&mut page, "tab-2", "", "");
+    tell(&mut page, "tab-2", |state| {
+        state.url = "http://localhost:5173/".to_owned();
+        state.title = "Vite".to_owned();
+    });
+    page.press("cmd+l").expect("address");
+    page.fill("address/field", "30").expect("typed");
+    page.advance(0.2).expect("settled");
+    assert!(page.says(":3000"), "{}", said(&page));
+    // ⌃1 brings the first tab in front: what was written goes with the keyboard, and no press is coming.
+    page.press("ctrl+1").expect("tab one");
+    assert!(!page.says(":3000"), "{}", said(&page));
+}
+
+    assert_eq!(page.field("address/field"), Some("localhost:3000"));
 }
 
 #[test]
