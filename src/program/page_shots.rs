@@ -53,8 +53,8 @@ fn at_pages(size: (f32, f32), fonts: &Fonts) -> Result<Page, Error> {
     let (stand, history) = machine();
     let session = session_over(stand, history, None);
     let mut page = open_with(&session, size, Some(fonts), true)?;
-    ready(&mut page, "tab-1", "", "");
     write_address(&mut page, "3000");
+    ready(&mut page, "tab-1", "", "");
     tell(&mut page, "tab-1", |state| {
         state.url = "http://localhost:3000/".to_owned();
         state.title = "Dashboard".to_owned();
@@ -69,8 +69,8 @@ fn at_pages(size: (f32, f32), fonts: &Fonts) -> Result<Page, Error> {
         ),
     ] {
         page.press("ctrl+t")?;
-        ready(&mut page, tab, "", "");
         write_address(&mut page, number);
+        ready(&mut page, tab, "", "");
         let url = if number.starts_with("http") {
             number.to_owned()
         } else {

@@ -30,7 +30,8 @@ end
 -- The address a tab is at: what its browser says, else what it was asked to go to.
 function tabs.url_of(tab)
 	local state = tab.state
-	if state ~= nil and state.url ~= "" then
+	-- A browser that has not been anywhere is at about:blank: that is no address of the tab's.
+	if state ~= nil and state.url ~= "" and string.lower(state.url) ~= "about:blank" then
 		return state.url
 	end
 	return tab.url or ""

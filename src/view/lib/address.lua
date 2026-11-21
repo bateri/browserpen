@@ -146,7 +146,7 @@ end
 
 -- What a tab is called: the page's title, else its address as it is read, else what a blank tab is.
 function address.title_of(url, title)
-	if title ~= nil and title ~= "" then
+	if title ~= nil and title ~= "" and string.lower(title) ~= "about:blank" then
 		return title
 	end
 	local shown = address.display(url)

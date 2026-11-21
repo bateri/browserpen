@@ -38,8 +38,8 @@ What you type in the address bar is an address, a port or a search: `3000` is `l
 `localhost`, `127.0.0.1`, `[::1]` and a name with a port and no dot (`myhost:8080`) are `http`, a name
 with a dot and no space is `https`, and anything else is a search.
 
-A blank tab (`⌃T`) lists the TCP ports your processes listen on, with the process's name, and the
-addresses you have been to (kept per profile, on the machine the program runs on). The arrow keys go
+A blank tab (`⌃T`) lists the TCP ports the programs you started listen on (on a Mac, not the apps'),
+with the program's name, and the addresses you have been to (kept per profile, on the machine the program runs on). The arrow keys go
 through them and Enter goes to the one chosen. A page that did not load says why; where the address is
 a port nothing listens on, it says so, and says when something does.
 

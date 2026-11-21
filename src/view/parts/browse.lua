@@ -187,6 +187,12 @@ function browse.told(tab, state)
 		local url = tab.wanted
 		tab.wanted = nil
 		ask(tab, { go = url })
+	elseif state.status == "unsupported" and tab.wanted ~= nil then
+		-- The browser of a tab is made when the tab gets its address, so that a host that shows none says
+		-- so after the address was asked for: it opens in the person's own browser then.
+		local url = tab.wanted
+		tab.wanted = nil
+		browse.open_outside(url)
 	end
 	if state.error == nil then
 		tab.nothing, tab.answers = nil, nil

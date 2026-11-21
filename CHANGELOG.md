@@ -8,7 +8,8 @@
   page and zoom, in a terminal that shows pencere views (bateri). What a page loads comes from the
   machine the program runs on, so `localhost:3000` over ssh is that server's own.
 - **A blank tab lists the ports the machine listens on and the addresses you have been to.** The
-  arrow keys go through them and Enter goes to the one chosen; what you type narrows them.
+  arrow keys go through them and Enter goes to the one chosen; what you type narrows them. The ports
+  are those of programs you started (on a Mac, not those of apps), by the program's name.
 - **`browserpen [URL] [--profile NAME]`.** `3000` and `:3000` are `localhost:3000`; words that are not
   an address are a search. What the sites keep stays under the profile from one run to the next.
 - **A page that did not load says why,** and where the address is a port nothing listens on, that

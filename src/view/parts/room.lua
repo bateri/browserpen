@@ -84,26 +84,30 @@ local function card(tab)
 	return frame(false):child(sentence(state.message or "The browser is not ready."))
 end
 
--- The room: every tab's browser, the one in front shown.
+-- The room: the browser of every tab that has had an address, the one in front shown. A blank tab has no
+-- browser yet: a browser made for nothing shows "about:blank" for its title and has it in its history, so
+-- it is made when the tab is given its address.
 function room.view()
 	local view = b.div():id("room"):grow(1):min_h(0):min_w(0):col()
 	local active = tabs.active()
 	for _, tab in S.tabs do
-		-- The keyboard can be sent to a browser by its name, as to a field.
-		u:field(tab.key)
-		local browser = b.browser(tab.key, { profile = S.boot.profile, windows = "page", keys = commands.browser_keys() })
-		if tab == active and tab.opened then
-			browser:grow(1):min_h(0)
-		else
-			browser:hidden()
-		end
-		view:child(browser)
-		-- The card is not the browser's child: a press on the card's room is the card's, where a press in
-		-- a browser's is the browser's.
-		if tab == active and tab.opened then
-			local over = card(tab)
-			if over ~= nil then
-				view:child(over)
+		if tab.opened then
+			-- The keyboard can be sent to a browser by its name, as to a field.
+			u:field(tab.key)
+			local browser = b.browser(tab.key, { profile = S.boot.profile, windows = "page", keys = commands.browser_keys() })
+			if tab == active then
+				browser:grow(1):min_h(0)
+			else
+				browser:hidden()
+			end
+			view:child(browser)
+			-- The card is not the browser's child: a press on the card's room is the card's, where a press in
+			-- a browser's is the browser's.
+			if tab == active then
+				local over = card(tab)
+				if over ~= nil then
+					view:child(over)
+				end
 			end
 		end
 	end

@@ -177,8 +177,11 @@ pub(crate) fn open_keyed(
         opening = opening.measure(fonts.clone()).scale(2.0);
     }
     let mut page = opening.peer(program).open()?;
-    // What the page shows first comes from the program on its own threads.
-    page.wait_for(WITHIN, |page| !page.browsers().is_empty())?;
+    // What the page shows first comes from the program on its own threads: a blank tab, or the tab
+    // (and its browser) of the address the command line gave.
+    page.wait_for(WITHIN, |page| {
+        !page.browsers().is_empty() || page.says("New Tab")
+    })?;
     page.advance(0.3)?;
     Ok(page)
 }
@@ -276,6 +279,32 @@ fn a_new_run_opens_a_blank_tab_with_the_address_field_ready_and_the_ports_listed
 
 #[test]
 #[ignore = "opens the kit's interpreter: make test-page"]
+fn a_blank_tab_has_no_browser_and_gets_one_with_its_address_that_is_not_called_about_blank() {
+    let (_stand, _session, mut page) = open(WIDE);
+    // A browser made for nothing would show "about:blank" for its title and have it behind it.
+    assert!(page.browsers().is_empty(), "{:?}", page.browsers().len());
+    assert!(page.says("New Tab"), "{}", said(&page));
+    page.press("ctrl+t").expect("a new tab");
+    assert!(page.browsers().is_empty(), "{:?}", page.browsers().len());
+    write_address(&mut page, "3000");
+    let made: Vec<_> = page.browsers().iter().map(|browser| browser.id).collect();
+    assert_eq!(made, [Id::named("tab-2")]);
+    // What a browser says of itself before it has been anywhere is neither the tab's title nor its
+    // address.
+    ready(&mut page, "tab-2", "about:blank", "about:blank");
+    page.advance(0.1).expect("settled");
+    assert!(!page.says("about:blank"), "{}", said(&page));
+    assert!(page.says("localhost:3000"), "{}", said(&page));
+    assert_eq!(page.field("address/field"), Some("localhost:3000"));
+    assert!(
+        went_to(&page, "tab-2", "http://localhost:3000"),
+        "{:?}",
+        asks(&page)
+    );
+}
+
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
 fn an_address_is_asked_of_the_browser_only_once_it_says_it_is_ready() {
     let (_stand, _session, mut page) = open(WIDE);
     write_address(&mut page, "localhost:3000");
@@ -313,8 +342,8 @@ fn what_is_typed_is_an_address_a_port_or_a_search() {
     ];
     for (typed, expected) in table {
         let (_stand, _session, mut page) = open(WIDE);
-        ready(&mut page, "tab-1", "", "");
         write_address(&mut page, typed);
+        ready(&mut page, "tab-1", "", "");
         assert!(
             went_to(&page, "tab-1", expected),
             "{typed}: {:?}",
@@ -340,7 +369,7 @@ fn the_address_on_the_command_line_opens_in_the_first_tab() {
 #[test]
 #[ignore = "opens the kit's interpreter: make test-page"]
 fn the_keys_the_page_keeps_for_itself_are_told_to_the_browser_and_are_at_most_thirty_two() {
-    let (_stand, _session, page) = open(WIDE);
+    let (_stand, _session, page) = at_a_page();
     let mut kept = 0;
     for browser in page.browsers() {
         assert!(
@@ -356,8 +385,8 @@ fn the_keys_the_page_keeps_for_itself_are_told_to_the_browser_and_are_at_most_th
 /// A page with tab 1 at `http://localhost:3000/` (titled "App"), its browser ready and the keyboard in it.
 fn at_a_page() -> (Arc<Stand>, Arc<Session>, Page) {
     let (stand, session, mut page) = open(WIDE);
-    ready(&mut page, "tab-1", "", "");
     write_address(&mut page, "3000");
+    ready(&mut page, "tab-1", "", "");
     tell(&mut page, "tab-1", |state| {
         state.url = "http://localhost:3000/".to_owned();
         state.title = "App".to_owned();
@@ -429,8 +458,8 @@ fn a_key_the_browser_has_no_use_for_comes_back_as_the_pages_own() {
 fn tabs_open_close_move_and_come_back() {
     let (_stand, _session, mut page) = at_a_page();
     page.press("ctrl+t").expect("a new tab");
-    ready(&mut page, "tab-2", "", "");
     write_address(&mut page, "5173");
+    ready(&mut page, "tab-2", "", "");
     assert!(
         went_to(&page, "tab-2", "http://localhost:5173"),
         "{:?}",
@@ -784,8 +813,8 @@ fn the_addresses_the_profile_has_been_to_are_offered_in_the_next_run() {
     {
         let session = session_over(Arc::clone(&stand), History::open(home.path(), "test"), None);
         let mut page = open_with(&session, WIDE, None, true).expect("opens");
-        ready(&mut page, "tab-1", "", "");
         write_address(&mut page, "3000");
+        ready(&mut page, "tab-1", "", "");
         tell(&mut page, "tab-1", |state| {
             state.url = "http://localhost:3000/".to_owned();
             state.title = "Dashboard".to_owned();
@@ -807,10 +836,10 @@ fn the_addresses_the_profile_has_been_to_are_offered_in_the_next_run() {
 #[ignore = "opens the kit's interpreter: make test-page"]
 fn the_arrow_keys_go_through_the_ports_and_enter_goes_to_the_one_they_are_on() {
     let (_stand, _session, mut page) = open(WIDE);
-    ready(&mut page, "tab-1", "", "");
     page.press("down").expect("down");
     page.press("down").expect("down");
     page.press("enter").expect("enter");
+    ready(&mut page, "tab-1", "", "");
     assert!(
         went_to(&page, "tab-1", "http://localhost:5173"),
         "{:?}",
@@ -822,11 +851,11 @@ fn the_arrow_keys_go_through_the_ports_and_enter_goes_to_the_one_they_are_on() {
 #[ignore = "opens the kit's interpreter: make test-page"]
 fn what_is_typed_narrows_the_ports_and_nothing_chosen_goes_to_what_was_typed() {
     let (_stand, _session, mut page) = open(WIDE);
-    ready(&mut page, "tab-1", "", "");
     page.fill("address/field", "517").expect("typed");
     page.advance(0.1).expect("settled");
     assert!(page.says(":5173") && !page.says(":3000"), "{}", said(&page));
     page.press("enter").expect("enter");
+    ready(&mut page, "tab-1", "", "");
     assert!(
         went_to(&page, "tab-1", "http://localhost:517"),
         "{:?}",
@@ -881,8 +910,8 @@ fn nothing_of_the_bars_moves_whatever_the_page_is_doing() {
         let (stand, _session, mut page) = open(size);
         let blank = places(&page);
         let mut states = vec![("blank", blank.clone())];
-        ready(&mut page, "tab-1", "", "");
         write_address(&mut page, "3000");
+        ready(&mut page, "tab-1", "", "");
         tell(&mut page, "tab-1", |state| {
             state.url = "http://localhost:3000/".to_owned();
             state.title = "A page with a rather long title that does not fit".to_owned();
@@ -897,8 +926,8 @@ fn nothing_of_the_bars_moves_whatever_the_page_is_doing() {
         });
         for (tab, number) in [("tab-2", "5173"), ("tab-3", "3000")] {
             page.press("ctrl+t").expect("a tab");
-            ready(&mut page, tab, "", "");
             write_address(&mut page, number);
+            ready(&mut page, tab, "", "");
         }
         states.push(("three tabs", places(&page)));
         key(&mut page, "cmd+f");
@@ -1016,10 +1045,10 @@ fn the_suggestions_under_the_address_field_of_a_page_are_chosen_by_the_arrows_an
     assert_eq!(keyboard(&page), format!("{:?}", Id::named("tab-1")));
     // And on a blank tab, where the rows stand in the room.
     let (_stand, _session, mut page) = open(WIDE);
-    ready(&mut page, "tab-1", "", "");
     page.fill("address/field", "51").expect("typed");
     page.advance(0.2).expect("settled");
     page.click("row/port:5173").expect("a click on the row");
+    ready(&mut page, "tab-1", "", "");
     assert!(
         went_to(&page, "tab-1", "http://localhost:5173/"),
         "{:?}",

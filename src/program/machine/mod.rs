@@ -22,8 +22,8 @@ pub const MOST: usize = 64;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct Listener {
     pub port: u16,
-    /// The process as `ps` shows it: its `argv[0]`'s last component, or, for an interpreter (`node`,
-    /// `python`), the script it runs; a rewritten title is kept whole.
+    /// The process as `ps` shows it: its `argv[0]`'s last component (never the path), or, for an
+    /// interpreter (`node`, `python`), the script it runs; a rewritten title is kept whole.
     pub name: String,
 }
 
@@ -73,19 +73,21 @@ fn scan() -> Vec<Listener> {
     Vec::new()
 }
 
-/// The name a process is shown by, from its arguments: the last component of `argv[0]` (a title
-/// that was rewritten, with spaces, whole); where that is an interpreter, the script it was given,
-/// which is what the person started.
+/// The name a process is shown by, from its arguments: the last component of `argv[0]`, never the
+/// path (a title that was rewritten, and is no path, whole); where that is an interpreter, the
+/// script it was given, which is what the person started.
 #[cfg(any(target_os = "macos", target_os = "linux", test))]
 fn display_name(args: &[String], kernel_name: Option<&str>) -> Option<String> {
     const INTERPRETERS: [&str; 9] = [
         "node", "bun", "deno", "python", "python3", "ruby", "php", "java", "tsx",
     ];
+    // A path is shown by its last part, spaces in the path or not (`Application Support`); a word that
+    // is no path is a title the process gave itself, and stays whole.
     let last = |word: &str| -> String {
-        if word.starts_with('/') && !word.contains(' ') {
-            word.rsplit('/').next().unwrap_or(word).to_owned()
-        } else {
-            word.to_owned()
+        let name = word.rsplit('/').find(|part| !part.is_empty());
+        match name {
+            Some(name) if word.starts_with('/') => name.to_owned(),
+            _ => word.to_owned(),
         }
     };
     let first = args
@@ -106,6 +108,20 @@ fn display_name(args: &[String], kernel_name: Option<&str>) -> Option<String> {
             .filter(|name| !name.is_empty())
             .map(str::to_owned),
     }
+}
+
+/// Whether the executable at `path` is inside an application bundle (`Foo.app/Contents/MacOS/foo`):
+/// what the person opened from the Dock or the system started, not what a developer started in a
+/// terminal, which is what the page's list is for. A name that only ends in `.app` and is the
+/// executable itself, or a directory that only contains it (`my.app-server`), is no bundle.
+#[cfg(any(target_os = "macos", test))]
+fn in_an_app_bundle(path: &str) -> bool {
+    let mut parts: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
+    // The executable itself.
+    parts.pop();
+    parts
+        .iter()
+        .any(|part| part.len() > ".app".len() && part.to_ascii_lowercase().ends_with(".app"))
 }
 
 #[cfg(test)]
@@ -137,6 +153,52 @@ mod tests {
         );
         assert_eq!(display_name(&[], Some("kernel")).as_deref(), Some("kernel"));
         assert_eq!(display_name(&[], None), None);
+    }
+
+    #[test]
+    fn a_process_is_never_shown_by_its_path_whatever_the_path_holds() {
+        let name = |args: &[&str]| display_name(&words(args), None);
+        assert_eq!(
+            name(&["/Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper"])
+                .as_deref(),
+            Some("OrbStack Helper")
+        );
+        assert_eq!(
+            name(&["/Users/me/Library/Application Support/Figma/FigmaAgent.app/Contents/MacOS/FigmaAgent"])
+                .as_deref(),
+            Some("FigmaAgent")
+        );
+        assert_eq!(
+            name(&[
+                "/Users/me/My Projects/bin/node",
+                "/Users/me/My Projects/app/server.js"
+            ])
+            .as_deref(),
+            Some("server.js")
+        );
+    }
+
+    #[test]
+    fn a_program_inside_an_application_bundle_is_told_from_one_started_in_a_terminal() {
+        for path in [
+            "/System/Library/CoreServices/ControlCenter.app/Contents/MacOS/ControlCenter",
+            "/Applications/OrbStack.app/Contents/Frameworks/OrbStack Helper.app/Contents/MacOS/OrbStack Helper",
+            "/Users/me/Library/Application Support/Figma/FigmaAgent.app/Contents/MacOS/FigmaAgent",
+            "/Applications/Postgres.APP/Contents/Versions/17/bin/postgres",
+        ] {
+            assert!(in_an_app_bundle(path), "{path}");
+        }
+        for path in [
+            "/opt/homebrew/bin/node",
+            "/Users/me/.cargo/bin/cargo",
+            "/Users/me/Projects/my.app-server/target/debug/serve",
+            "/Users/me/bin/Thing.app",
+            "/Users/me/.app/serve",
+            "node",
+            "",
+        ] {
+            assert!(!in_an_app_bundle(path), "{path}");
+        }
     }
 
     #[test]

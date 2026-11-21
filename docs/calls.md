@@ -46,8 +46,12 @@ none.
 { "ports": [ { "port": 3000, "name": "node" } ] }
 ```
 
-`name` is the process's name. A port is listed once, the lowest first. The list is the person's
-processes' alone: a server that root, another user or a container holds is not in it.
+`name` is the process's name: the last part of its path, never the path (or, for `node`, `python` and
+the like, the script it runs). A port is listed once, the lowest first. The list is the person's
+processes' alone: a server that root, another user or a container holds is not in it. On macOS a
+program that runs from inside an application bundle (`Foo.app/Contents/...`: Control Center, a helper of
+a Dock app, a database that comes as an app) is not in it either: the list is what a developer started
+in a terminal. Linux lists all of the person's own.
 
 ### `probe`
 

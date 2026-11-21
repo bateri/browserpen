@@ -31,6 +31,11 @@ pub fn listeners() -> Vec<Listener> {
         if owner(pid) != Some(me) {
             continue;
         }
+        // What the person opened (a Dock app's helper, the system's own: Control Center on :5000 and
+        // :7000) is not what a developer started in a terminal, which is what the page lists.
+        if executable(pid).is_some_and(|path| super::in_an_app_bundle(&path)) {
+            continue;
+        }
         let ports = listening(pid);
         if ports.is_empty() {
             continue;
@@ -85,6 +90,16 @@ fn owner(pid: c_int) -> Option<u32> {
         )
     };
     (got == size).then_some(info.pbi_uid)
+}
+
+/// The path of the executable of a process (`proc_pidpath`), where the kernel gives it.
+fn executable(pid: c_int) -> Option<String> {
+    // `PROC_PIDPATHINFO_MAXSIZE` (`<libproc.h>`): four times `MAXPATHLEN`.
+    let mut path = [0u8; 4096];
+    // SAFETY: the buffer belongs to this frame and its size goes to the call as is.
+    let got = unsafe { libc::proc_pidpath(pid, path.as_mut_ptr().cast(), path.len() as u32) };
+    let length = usize::try_from(got).ok().filter(|length| *length > 0)?;
+    Some(String::from_utf8_lossy(path.get(..length)?).into_owned())
 }
 
 /// The TCP ports `pid` listens on; empty for a process we cannot read or that is gone.
