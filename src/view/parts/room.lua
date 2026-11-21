@@ -78,7 +78,7 @@ local function card(tab)
 		-- The host's placeholder says it shows no browser, in the middle of the room: the card's button
 		-- stands under it.
 		local view = frame(true):pt(72)
-		return view:child(action_button("card-outside", "Open in Your Browser"))
+		return view:child(action_button("card-outside", commands.get("open_outside").title))
 	end
 	-- A status the page does not know is a browser that is not ready.
 	return frame(false):child(sentence(state.message or "The browser is not ready."))
@@ -124,9 +124,7 @@ function room.pressed(name)
 		browse.reload(tab, true)
 		return true
 	elseif name == "card-outside" then
-		if tab ~= nil then
-			browse.open_outside(tabs.url_of(tab))
-		end
+		act.run("open_outside")
 		return true
 	end
 	return false

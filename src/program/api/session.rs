@@ -12,6 +12,42 @@ use crate::machine::Listener;
 use crate::session::Session;
 use crate::state::history::Visit;
 
+/// A listening port as the page is told it (`docs/calls.md`): made here from what `machine/` holds,
+/// member by member, so that the page's words are this file's and not those of a type that knows
+/// nothing of the page.
+#[derive(Serialize)]
+struct Port {
+    port: u16,
+    name: String,
+}
+
+/// An address the profile has been to, as the page is told it.
+#[derive(Serialize)]
+struct Recent {
+    url: String,
+    title: String,
+}
+
+fn ports_of(listeners: Vec<Listener>) -> Vec<Port> {
+    listeners
+        .into_iter()
+        .map(|listener| Port {
+            port: listener.port,
+            name: listener.name,
+        })
+        .collect()
+}
+
+fn recent_of(visits: Vec<Visit>) -> Vec<Recent> {
+    visits
+        .into_iter()
+        .map(|visit| Recent {
+            url: visit.url,
+            title: visit.title,
+        })
+        .collect()
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct Boot {
@@ -20,8 +56,13 @@ struct Boot {
     /// The address the command line gave, as it was typed.
     #[serde(skip_serializing_if = "Option::is_none")]
     start: Option<String>,
-    ports: Vec<Listener>,
-    recent: Vec<Visit>,
+    ports: Vec<Port>,
+    recent: Vec<Recent>,
+}
+
+#[derive(Serialize)]
+struct Ports {
+    ports: Vec<Port>,
 }
 
 /// A call that takes nothing.
@@ -35,14 +76,16 @@ fn boot(session: &Session, _: Nothing) -> Boot {
         version: env!("CARGO_PKG_VERSION"),
         profile: session.profile.clone(),
         start: session.start.clone(),
-        ports: session.machine.listeners(),
-        recent: session.history.list(),
+        ports: ports_of(session.machine.listeners()),
+        recent: recent_of(session.history.list()),
     }
 }
 
 /// The ports the person's processes listen on, as of now: the page asks while it shows them.
-fn ports(session: &Session, _: Nothing) -> Value {
-    json!({ "ports": session.machine.listeners() })
+fn ports(session: &Session, _: Nothing) -> Ports {
+    Ports {
+        ports: ports_of(session.machine.listeners()),
+    }
 }
 
 #[derive(Deserialize)]

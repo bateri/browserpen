@@ -37,6 +37,18 @@ commands.when = {
 	closed = function()
 		return #S.closed > 0
 	end,
+	tab_before = function()
+		local _, index = tabs.by_key(S.active)
+		return index ~= nil and index > 1
+	end,
+	tab_after = function()
+		local _, index = tabs.by_key(S.active)
+		return index ~= nil and index < #S.tabs
+	end,
+	unsupported = function()
+		local tab = tabs.active()
+		return tab ~= nil and tab.opened and browse.unsupported(tab)
+	end,
 	page = function()
 		return (active_state())
 	end,
@@ -73,9 +85,9 @@ function act.reload(tab, cache)
 	browse.reload(tab, cache)
 end
 
--- Does the command `id`.
-local function run(id)
-	local tab = tabs.active()
+-- Does the command `id`: to the tab in front, or to `target` (a tab's own menu is the tab's, in front or not).
+local function run(id, target)
+	local tab = target or tabs.active()
 	if id == "address" then
 		act.focus_address()
 	elseif id == "copy_address" then
@@ -83,13 +95,33 @@ local function run(id)
 	elseif id == "new_tab" then
 		tabs.open(nil)
 	elseif id == "close_tab" then
-		tabs.close(S.active)
+		tabs.close(tab and tab.key or S.active)
 	elseif id == "reopen_tab" then
 		tabs.reopen()
+	elseif id == "duplicate_tab" then
+		if tab ~= nil and tab.opened then
+			tabs.open(tabs.url_of(tab), { after = tab.key })
+		end
+	elseif id == "close_others" then
+		if tab ~= nil then
+			tabs.close_others(tab.key)
+		end
+	elseif id == "close_right" then
+		if tab ~= nil then
+			tabs.close_right(tab.key)
+		end
 	elseif id == "next_tab" then
 		tabs.step(1)
 	elseif id == "previous_tab" then
 		tabs.step(-1)
+	elseif id == "move_left" then
+		tabs.shift(S.active, -1)
+	elseif id == "move_right" then
+		tabs.shift(S.active, 1)
+	elseif id == "open_outside" then
+		if tab ~= nil then
+			browse.open_outside(tabs.url_of(tab))
+		end
 	elseif id == "tab_last" then
 		tabs.go_to(nil)
 	elseif string.match(id, "^tab_%d$") then

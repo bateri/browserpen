@@ -35,12 +35,12 @@ export const fileOf = (version, target) => `${NAME}-${version}-${target}`;
  */
 export const noTerminalFileOf = (version, target) => `${NAME}-no-terminal-${version}-${target}`;
 
-/** The target of the machine this runs on, for the one executable it can run. */
-export function ownTarget() {
-  const arch = { arm64: "aarch64", x64: "x86_64" }[process.arch];
+/** The target of the machine this runs on, whether browserpen is built for it or not; `undefined` for a system it knows none of. */
+export function ownTarget(platform = process.platform, cpu = process.arch) {
+  const arch = { arm64: "aarch64", x64: "x86_64" }[cpu];
   if (arch === undefined) return undefined;
-  if (process.platform === "darwin") return `${arch}-apple-darwin`;
-  if (process.platform === "linux") return `${arch}-unknown-linux-musl`;
+  if (platform === "darwin") return `${arch}-apple-darwin`;
+  if (platform === "linux") return `${arch}-unknown-linux-musl`;
   return undefined;
 }
 
@@ -110,9 +110,11 @@ function checkManifest(dir, version, listed, trust) {
  * the same sums. The names carry the version, so a dist/release made before the version moved is
  * refused; the two executables this machine can run say their version (`<version>`, or
  * `${NAME} <version>` as `--version` of browserpen does). `trust` is the key the app.json is signed
- * with: bateri's own, which the tests replace with the one of their own.
+ * with: bateri's own, which the tests replace with the one of their own. `own` is the target of the
+ * machine this runs on: a release is looked at only where its executables can be run, so a machine of a
+ * target that is not one of the release's (an Intel Mac) is refused, saying so.
  */
-export function releaseFiles(dir, version, trust = BATERI_KEY) {
+export function releaseFiles(dir, version, trust = BATERI_KEY, own = ownTarget()) {
   if (!existsSync(dir)) refuse(`no dist/release: make dist, after the release commit`);
   const expected = TARGETS.flatMap((target) => [fileOf(version, target), noTerminalFileOf(version, target)]);
   const found = readdirSync(dir).sort();
@@ -153,7 +155,11 @@ export function releaseFiles(dir, version, trust = BATERI_KEY) {
     }
   }
   checkManifest(dir, version, listed, trust);
-  const own = ownTarget();
+  if (own !== undefined && !TARGETS.includes(own)) {
+    refuse(
+      `this machine is ${own}, and browserpen is released for ${TARGETS.join(", ")}: look at the release on a machine of one of them, which can run its executables`,
+    );
+  }
   if (own !== undefined) {
     for (const name of [fileOf(version, own), noTerminalFileOf(version, own)]) {
       const said = execFileSync(join(dir, name), ["--version"], { encoding: "utf8" }).trim();

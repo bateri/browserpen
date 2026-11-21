@@ -30,8 +30,9 @@ end
 -- The address a tab is at: what its browser says, else what it was asked to go to.
 function tabs.url_of(tab)
 	local state = tab.state
-	-- A browser that has not been anywhere is at about:blank: that is no address of the tab's.
-	if state ~= nil and state.url ~= "" and string.lower(state.url) ~= "about:blank" then
+	-- A browser that has not been anywhere is at about:blank: that is no address of the tab's. One that
+	-- has been somewhere and is at about:blank again went there itself, and the tab says so.
+	if state ~= nil and state.url ~= "" and (tab.reported or string.lower(state.url) ~= "about:blank") then
 		return state.url
 	end
 	return tab.url or ""
@@ -187,6 +188,20 @@ function tabs.move(key, before)
 	table.insert(S.tabs, at, tab)
 end
 
+-- The tab `key` `step` places along the strip (not past either end).
+function tabs.shift(key, step)
+	local tab, index = tabs.by_key(key)
+	if tab == nil then
+		return
+	end
+	local to = index + step
+	if to < 1 or to > #S.tabs then
+		return
+	end
+	table.remove(S.tabs, index)
+	table.insert(S.tabs, to, tab)
+end
+
 -- Brings the last tab closed back, in front, at the address it had.
 function tabs.reopen()
 	local url = table.remove(S.closed)
@@ -233,14 +248,19 @@ function tabs.view()
 		:child(plus)
 end
 
-local MENU = {
-	{ key = "reload", title = "Reload", keys = commands.keys("reload") },
-	{ key = "duplicate", title = "Duplicate" },
-	{ key = "copy_address", title = "Copy Address" },
-	"-",
-	{ key = "close_others", title = "Close Other Tabs" },
-	{ key = "close_right", title = "Close Tabs to the Right" },
-}
+-- What a tab's menu has: commands of the table (its titles and keys are the table's), and a rule.
+local MENU = { "reload", "duplicate_tab", "copy_address", "-", "close_others", "close_right" }
+
+-- Whether the tab at `index` can have the menu's command done to it (the table's conditions are those
+-- of the tab in front; a menu is of the tab that was pressed).
+local function enabled_for(id, tab, index)
+	if id == "close_others" then
+		return #S.tabs > 1
+	elseif id == "close_right" then
+		return index < #S.tabs
+	end
+	return tab.opened
+end
 
 -- An action of the strip or of the button after it. Whether it was theirs.
 function tabs.action(action)
@@ -257,19 +277,12 @@ function tabs.action(action)
 			if tab ~= nil then
 				S.menu_tab = action.key
 				local entries = {}
-				for _, entry in MENU do
-					if entry == "-" then
-						entries[#entries + 1] = entry
+				for _, id in MENU do
+					if id == "-" then
+						entries[#entries + 1] = id
 					else
-						local enabled = true
-						if entry.key == "reload" or entry.key == "copy_address" or entry.key == "duplicate" then
-							enabled = tab.opened
-						elseif entry.key == "close_others" then
-							enabled = #S.tabs > 1
-						elseif entry.key == "close_right" then
-							enabled = index < #S.tabs
-						end
-						entries[#entries + 1] = { key = entry.key, title = entry.title, keys = entry.keys, enabled = enabled }
+						local command = commands.get(id)
+						entries[#entries + 1] = { key = id, title = command.title, keys = commands.keys(id), enabled = enabled_for(id, tab, index) }
 					end
 				end
 				kit.gather(u:menu("tab-menu", entries, { at = action.at }))
@@ -285,16 +298,8 @@ function tabs.action(action)
 		if tab == nil then
 			return true
 		end
-		if action.entry == "reload" then
-			act.reload(tab, true)
-		elseif action.entry == "duplicate" then
-			tabs.open(tabs.url_of(tab), { after = tab.key })
-		elseif action.entry == "copy_address" then
-			act.copy_address(tab)
-		elseif action.entry == "close_others" then
-			tabs.close_others(tab.key)
-		elseif action.entry == "close_right" then
-			tabs.close_right(tab.key)
+		if commands.get(action.entry) ~= nil then
+			act.run(action.entry, tab)
 		end
 		return true
 	end

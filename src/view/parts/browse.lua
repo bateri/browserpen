@@ -183,6 +183,10 @@ end
 function browse.told(tab, state)
 	local before = tab.state
 	tab.state = state
+	-- From the first address it reports, the browser's about:blank is the page's own.
+	if state.url ~= "" and string.lower(state.url) ~= "about:blank" then
+		tab.reported = true
+	end
 	if state.status == "ready" and tab.wanted ~= nil then
 		local url = tab.wanted
 		tab.wanted = nil

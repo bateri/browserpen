@@ -32,8 +32,13 @@ local TABLE = {
 	{ id = "new_tab", title = "New Tab", group = "Tabs", keys = "ctrl+t", always = true },
 	{ id = "close_tab", title = "Close Tab", group = "Tabs", keys = "ctrl+w", always = true },
 	{ id = "reopen_tab", title = "Reopen Closed Tab", group = "Tabs", keys = "mod+shift+t", always = true, when = "closed" },
+	{ id = "duplicate_tab", title = "Duplicate Tab", group = "Tabs", when = "page" },
+	{ id = "close_others", title = "Close Other Tabs", group = "Tabs", when = "tabs" },
+	{ id = "close_right", title = "Close Tabs to the Right", group = "Tabs", when = "tab_after" },
 	{ id = "next_tab", title = "Next Tab", group = "Tabs", keys = "ctrl+page_down", always = true, when = "tabs" },
 	{ id = "previous_tab", title = "Previous Tab", group = "Tabs", keys = "ctrl+page_up", always = true, when = "tabs" },
+	{ id = "move_left", title = "Move Tab Left", group = "Tabs", keys = "ctrl+shift+page_up", always = true, when = "tab_before" },
+	{ id = "move_right", title = "Move Tab Right", group = "Tabs", keys = "ctrl+shift+page_down", always = true, when = "tab_after" },
 	{ id = "tab_1", title = "Go to Tab 1", group = "Tabs", keys = "ctrl+1", always = true, hidden = true, when = "tabs" },
 	{ id = "tab_2", title = "Go to Tab 2", group = "Tabs", keys = "ctrl+2", always = true, hidden = true, when = "tabs" },
 	{ id = "tab_3", title = "Go to Tab 3", group = "Tabs", keys = "ctrl+3", always = true, hidden = true, when = "tabs" },
@@ -53,6 +58,8 @@ local TABLE = {
 	{ id = "zoom_out", title = "Zoom Out", group = "Page", keys = "mod+-", when = "page" },
 	{ id = "zoom_reset", title = "Actual Size", group = "Page", keys = "mod+0", when = "page" },
 	{ id = "devtools", title = "Developer Tools", group = "Page", shown = "alt+mod+i", when = "page" },
+	-- Where the host shows no browser, the page's address opens in the person's own.
+	{ id = "open_outside", title = "Open in Your Browser", group = "Page", when = "unsupported" },
 
 	{ id = "find", title = "Find", group = "Find", keys = "mod+f", when = "page" },
 	{ id = "find_next", title = "Find Next", group = "Find", keys = "mod+g", when = "finding" },

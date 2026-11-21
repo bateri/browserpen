@@ -15,7 +15,9 @@ use std::time::Duration;
 
 use pencere::ViewControl;
 use pencere_drive::headless::{Error, Focus, Headless, InProcess};
-use pencere_view::{BrowserAsk, BrowserError, BrowserFound, BrowserState, Id, KeyConvention};
+use pencere_view::{
+    BrowserAsk, BrowserError, BrowserFound, BrowserState, Id, KeyConvention, MenuEntry,
+};
 
 use crate::machine::{Listener, Machine};
 use crate::session::Session;
@@ -301,6 +303,25 @@ fn a_blank_tab_has_no_browser_and_gets_one_with_its_address_that_is_not_called_a
         "{:?}",
         asks(&page)
     );
+    // Once the browser has been to an address, its about:blank is where the page itself went: the old
+    // address does not stay in the tab.
+    tell(&mut page, "tab-2", |state| {
+        state.url = "http://localhost:3000/".to_owned();
+        state.title = "App".to_owned();
+    });
+    page.advance(0.1).expect("settled");
+    assert!(page.says("App"), "{}", said(&page));
+    tell(&mut page, "tab-2", |state| {
+        state.url = "about:blank".to_owned();
+        state.title = "about:blank".to_owned();
+    });
+    page.advance(0.1).expect("settled");
+    assert!(
+        !page.says("App") && !page.says("localhost:3000"),
+        "{}",
+        said(&page)
+    );
+    assert_eq!(page.field("address/field").unwrap_or(""), "");
 }
 
 #[test]
@@ -800,9 +821,17 @@ fn where_the_host_shows_no_browser_an_address_opens_in_the_persons_own() {
     assert!(page.says("Open in Your Browser"), "{}", said(&page));
     page.click("card-outside").expect("the card's button");
     assert_eq!(page.links().len(), 2, "{:?}", page.links());
+    // The button is a command of the table: the palette has it, and does the same.
+    key(&mut page, "f1");
+    page.advance(0.3).expect("drawn");
+    page.type_text("open in").expect("typed");
+    page.advance(0.2).expect("settled");
+    page.press("enter").expect("run");
+    assert_eq!(page.links().len(), 3, "{:?}", page.links());
+    page.advance(0.3).expect("settled");
     // Reload does the same, and says nothing of a browser that is not there.
     page.press("cmd+r").expect("reload");
-    assert_eq!(page.links().len(), 3, "{:?}", page.links());
+    assert_eq!(page.links().len(), 4, "{:?}", page.links());
 }
 
 #[test]
@@ -976,6 +1005,88 @@ fn nothing_of_the_bars_moves_whatever_the_page_is_doing() {
     }
 }
 
+/// Runs the command whose title has `words` from the palette, as a person does.
+fn from_the_palette(page: &mut Page, words: &str) {
+    key(page, "f1");
+    page.advance(0.3).expect("drawn");
+    page.type_text(words).expect("typed");
+    page.advance(0.2).expect("settled");
+    page.press("enter").expect("run");
+    page.advance(0.2).expect("settled");
+}
+
+fn x_of(page: &Page, tab: &str) -> f32 {
+    page.bounds(&format!("tabs/tab/{tab}")).expect("a tab").x
+}
+
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
+fn what_a_tabs_menu_and_the_drag_do_the_keyboard_does_too_and_the_menu_says_the_tables_words() {
+    let (_stand, _session, mut page) = at_a_page();
+    // The menu's words are the table's.
+    page.press("ctrl+t").expect("a new tab");
+    write_address(&mut page, "5173");
+    ready(&mut page, "tab-2", "", "");
+    page.right_click("tabs/tab/tab-1").expect("the menu");
+    let titles: Vec<String> = page
+        .menu()
+        .expect("a menu")
+        .entries
+        .iter()
+        .filter_map(|entry| match entry {
+            MenuEntry::Item { title, .. } => Some(title.clone()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(
+        titles,
+        [
+            "Reload",
+            "Duplicate Tab",
+            "Copy Address",
+            "Close Other Tabs",
+            "Close Tabs to the Right"
+        ]
+    );
+    page.press("escape").expect("closed");
+    // Tab 2 is in front. Moving a tab left and right is the drag's: ⌃⇧PgUp and ⌃⇧PgDn.
+    assert!(x_of(&page, "tab-1") < x_of(&page, "tab-2"));
+    page.press("ctrl+shift+page_up").expect("left");
+    assert!(x_of(&page, "tab-2") < x_of(&page, "tab-1"));
+    page.press("ctrl+shift+page_down").expect("right");
+    assert!(x_of(&page, "tab-1") < x_of(&page, "tab-2"));
+    // Duplicate Tab, Close Other Tabs and Close Tabs to the Right are in the palette.
+    from_the_palette(&mut page, "duplicate");
+    ready(&mut page, "tab-3", "", "");
+    assert!(
+        went_to(&page, "tab-3", "http://localhost:5173/"),
+        "{:?}",
+        asks(&page)
+    );
+    // Tab 3 is the copy, after tab 2: close what is to the right of tab 1.
+    page.press("ctrl+1").expect("tab one");
+    from_the_palette(&mut page, "close tabs to the right");
+    assert!(
+        page.bounds("tabs/tab/tab-2").is_none() && page.bounds("tabs/tab/tab-3").is_none(),
+        "{}",
+        said(&page)
+    );
+    // And with only one tab left, there is nothing to move or to close.
+    key(&mut page, "f1");
+    page.advance(0.3).expect("drawn");
+    assert!(
+        !page.says("Move Tab") && !page.says("Close Other Tabs") && !page.says("to the Right"),
+        "{}",
+        said(&page)
+    );
+    page.press("escape").expect("closed");
+    page.press("ctrl+t").expect("a new tab");
+    write_address(&mut page, "8080");
+    ready(&mut page, "tab-4", "", "");
+    from_the_palette(&mut page, "close other");
+    assert!(page.bounds("tabs/tab/tab-1").is_none() && page.bounds("tabs/tab/tab-4").is_some());
+}
+
 #[test]
 #[ignore = "opens the kit's interpreter: make test-page"]
 fn the_menu_of_a_tab_duplicates_it_and_a_tab_dragged_is_put_in_front_of_another() {
@@ -986,7 +1097,7 @@ fn the_menu_of_a_tab_duplicates_it_and_a_tab_dragged_is_put_in_front_of_another(
         menu, 6,
         "Reload, Duplicate, Copy Address, a rule, and two to close"
     );
-    page.pick_titled("Duplicate").expect("duplicate");
+    page.pick_titled("Duplicate Tab").expect("duplicate");
     ready(&mut page, "tab-2", "", "");
     assert!(
         went_to(&page, "tab-2", "http://localhost:3000/"),
@@ -1153,4 +1264,29 @@ return {
     assert!(page.says("fired"), "{:?}", page.words());
     page.key(Key::Character('x'), Mods::default()).expect("key");
     assert_eq!(page.browser_asks().len(), 1, "{:?}", page.browser_asks());
+}
+
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
+fn the_palette_opened_again_starts_empty_whatever_was_written_in_it_before() {
+    let (_stand, _session, mut page) = at_a_page();
+    for round in 0..3 {
+        key(&mut page, "f1");
+        page.advance(0.3).expect("drawn");
+        assert_eq!(
+            page.field("palette/input/field").unwrap_or(""),
+            "",
+            "round {round}"
+        );
+        page.type_text("dup").expect("typed");
+        page.advance(0.2).expect("settled");
+        // The match is drawn in two pieces ("Dup", "licate Tab"); nothing else is found by it.
+        assert!(
+            page.says("licate Tab") && !page.says("Reload"),
+            "round {round}: {}",
+            said(&page)
+        );
+        page.press("escape").expect("closed");
+        page.advance(0.2).expect("settled");
+    }
 }

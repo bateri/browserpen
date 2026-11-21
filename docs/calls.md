@@ -46,12 +46,18 @@ none.
 { "ports": [ { "port": 3000, "name": "node" } ] }
 ```
 
-`name` is the process's name: the last part of its path, never the path (or, for `node`, `python` and
-the like, the script it runs). A port is listed once, the lowest first. The list is the person's
-processes' alone: a server that root, another user or a container holds is not in it. On macOS a
-program that runs from inside an application bundle (`Foo.app/Contents/...`: Control Center, a helper of
-a Dock app, a database that comes as an app) is not in it either: the list is what a developer started
-in a terminal. Linux lists all of the person's own.
+`name` is the process's name: the last part of its path, never the path (or, for `node`, `python`,
+`ruby` and the like, in any case and with a version (`python3.12`), the script or module it runs:
+`http.server`, `server.js`). A port is listed once, the lowest first. The list is the person's
+processes' alone: a server that root, another user or a container holds is not in it. On macOS it is
+what a developer started in a terminal: a program that runs from inside an application bundle
+(`Foo.app/Contents/...`: a helper of a Dock app, a database that comes as an app) or from the system's
+own directories (`/System`, `/usr/libexec`, `/usr/sbin`, `/sbin`: Control Center on :5000 and :7000) is
+not in it. Four things are, though they are in a bundle: a program in a bundle that is inside a
+framework (Python runs as `Python.framework/.../Python.app`, Xcode's too), what holds the ports of a
+container (OrbStack's helper, Docker Desktop's `com.docker.backend` and `com.docker.vpnkit`: the
+server in the container is behind them), and a bundle under `node_modules` (Electron). Linux lists all
+of the person's own.
 
 ### `probe`
 

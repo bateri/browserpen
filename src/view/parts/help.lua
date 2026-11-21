@@ -11,6 +11,12 @@ local help = {}
 
 -- Opens the palette of the commands, with nothing written in it.
 function help.show_commands()
+	-- A palette that was open before still has its last words in the host's field: the field is told to
+	-- be empty, as the page's state is.
+	if S.palette.opened then
+		S.palette.opened = nil
+		kit.gather({ fill = { [u:name(u:part("palette", "input"), "field")] = { text = "" } } })
+	end
 	S.palette.query = ""
 	S.palette.field.value = ""
 	S.palette.cursor = nil

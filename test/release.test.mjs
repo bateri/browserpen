@@ -180,7 +180,7 @@ describe("the files of a release", () => {
 
   it("take executables that say their name and version, and refuse either kind that says another", () => {
     const own = ownTarget();
-    if (own === undefined) return;
+    if (own === undefined || !TARGETS.includes(own)) return;
     for (const drawing of [true, false]) {
       const says = (text) =>
         release(VERSION, {
@@ -192,6 +192,25 @@ describe("the files of a release", () => {
       }
       assert.throws(() => check(says("browserpen 0.5.1").out, VERSION), refusal(`${name} says it is browserpen 0.5.1`));
     }
+  });
+
+  it("are refused, saying so and with no stack, on a machine whose target is not one of the release's", () => {
+    const { out } = release();
+    for (const [platform, arch] of [
+      ["darwin", "x64"],
+      ["linux", "arm64"],
+    ]) {
+      const own = ownTarget(platform, arch);
+      if (TARGETS.includes(own)) {
+        assert.equal(releaseFiles(out, VERSION, trusted.get(out), own).length, 9);
+        continue;
+      }
+      assert.throws(
+        () => releaseFiles(out, VERSION, trusted.get(out), own),
+        (error) => error instanceof Refusal && error.message.includes(`this machine is ${own}`),
+      );
+    }
+    assert.equal(ownTarget("win32", "x64"), undefined);
   });
 
   it("are refused when app.json or its signature is missing", () => {

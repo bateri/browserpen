@@ -13,9 +13,11 @@ machine/        the machine's listening ports and whether one answers; knows not
 state/          the addresses a profile has been to; same
 ```
 
-`api/` is the only place that builds a call's answer; `machine/` and `state/` know nothing of the page
-or of `serde`'s wire shapes, so each can be tested alone (their unit tests) and the page's tests
-(`page_tests.rs`) run the page over a stand-in `Machine`, never the machine's own ports.
+`api/` is the only place that builds a call's answer, member by member from what `machine/` and
+`state/` hold (the page's words are its own: `Port`, `Recent`); those two know nothing of the page or of
+`serde`'s wire shapes (`state/` has serde only for its own file), so each can be tested alone (their
+unit tests) and the page's tests (`page_tests.rs`) run the page over a stand-in `Machine`, never the
+machine's own ports.
 
 The page's tests and the pictures are `page_tests.rs` and `page_shots.rs`: the page (`src/view/`) run
 as a terminal runs it, on pencere's host with no screen (`pencere-drive`), with this program's handlers

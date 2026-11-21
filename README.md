@@ -52,6 +52,7 @@ Every key is on the screen: `F1` lists the commands, `⌘?` the keys.
 | `⌘L` | the address bar |
 | `⌃T` `⌃W` `⌘⇧T` | new tab, close tab, reopen the tab you closed |
 | `⌃PgDn` `⌃PgUp` `⌃1` to `⌃9` | next, previous tab; tab 1 to 8, the last |
+| `⌃⇧PgDn` `⌃⇧PgUp` | move the tab right, left |
 | `⌘R` `⌘⇧R` | reload, reload without the cache |
 | `⌘←` `⌘→` `Esc` | back, forward, stop |
 | `⌘F` `⌘G` `⌘⇧G` | find in page, next, previous |
@@ -60,7 +61,8 @@ Every key is on the screen: `F1` lists the commands, `⌘?` the keys.
 | `⌃Q` | quit |
 
 On a keyboard that is not a Mac's, Ctrl is what ⌘ is on a Mac. A web page that has a use for `⌘←`,
-`⌘F`, `Esc` or the zoom keys has it; the tab keys, `⌘L`, `⌘R` and `⌃Q` are always browserpen's.
+`⌘F`, `Esc` or the zoom keys has it; the tab keys, `⌘L`, `⌘R` and `⌃Q` are always browserpen's. Duplicate Tab, Close Other Tabs, Close Tabs to
+the Right (also in a tab's menu) and Open in Your Browser are in the command list, `F1`.
 
 ### For agents and scripts
 
