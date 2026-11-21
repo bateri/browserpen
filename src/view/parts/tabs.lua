@@ -317,14 +317,15 @@ end
 
 -- --- The strip ----------------------------------------------------------------------------------------------
 
--- The slot at the head of a tab: a ring that turns while the page loads, a quiet dot while it does
--- not. Twelve points either way, so that a tab's title does not move when the load ends.
+-- The slot at the head of a tab: a ring that turns while the page loads, and nothing while it does not (a
+-- picture of the page would be a favicon, which is not here). It keeps its twelve points either way, so that
+-- a tab's title does not move when the load ends.
 local function slot(tab)
-	local box = b.div():size(12, 12):no_shrink():items_center():justify_center()
+	local box = b.div():id("tab-slot/" .. tab.key):size(12, 12):no_shrink():items_center():justify_center()
 	if tab.state ~= nil and tab.state.loading then
 		return box:child(kit.spinner(12, "dim"))
 	end
-	return box:child(b.div():size(4, 4):rounded(2):bg("quiet"))
+	return box
 end
 
 local function tip_of(tab)
