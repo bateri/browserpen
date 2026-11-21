@@ -56,7 +56,7 @@ Every key is on the screen: `F1` lists the commands, `⌘?` the keys.
 | `⌘R` `⌘⇧R` | reload, reload without the cache |
 | `⌘←` `⌘→` `Esc` | back, forward, stop |
 | `⌘F` `⌘G` `⌘⇧G` | find in page, next, previous |
-| `⌘=` `⌘-` `⌘0` | zoom in, zoom out, actual size |
+| `⌘+` (or `⌘=`) `⌘-` `⌘0` | zoom in, zoom out, actual size |
 | `⌥⌘I` | developer tools (the terminal's) |
 | `⌃Q` | quit |
 

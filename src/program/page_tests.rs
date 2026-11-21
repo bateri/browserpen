@@ -740,6 +740,22 @@ fn zoom_steps_from_the_size_the_browser_says_and_a_size_not_its_own_is_a_chip() 
     );
 }
 
+/// Zoom In is every key that types + or = with ⌘, so that a keyboard where neither is a key of its own
+/// (Turkish Q: ⌘⇧4 for +, ⌘⇧0 for =) has it as a US one does.
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
+fn zoom_in_is_command_with_plus_or_equals_whatever_the_keyboard_types_them_with() {
+    for keys in ["cmd++", "cmd+shift++", "cmd+=", "cmd+shift+="] {
+        let (_stand, _session, mut page) = at_a_page();
+        key(&mut page, keys);
+        assert!(
+            asked_of(&page, "tab-1").contains(&BrowserAsk::Zoom(1.1)),
+            "{keys}: {:?}",
+            asked_of(&page, "tab-1")
+        );
+    }
+}
+
 #[test]
 #[ignore = "opens the kit's interpreter: make test-page"]
 fn a_page_that_did_not_load_says_why_once_and_reload_asks_again() {

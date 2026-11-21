@@ -54,7 +54,9 @@ local TABLE = {
 	{ id = "back", title = "Back", group = "Page", keys = "mod+left", when = "back" },
 	{ id = "forward", title = "Forward", group = "Page", keys = "mod+right", when = "forward" },
 	{ id = "stop", title = "Stop", group = "Page", shown = "escape", when = "loading" },
-	{ id = "zoom_in", title = "Zoom In", group = "Page", keys = "mod+=", when = "page" },
+	-- Zoom In is ⌘+ as a browser writes it, and every key that types + or = with ⌘: on a US keyboard ⌘= (and
+	-- ⌘⇧= for +), on a Turkish Q one ⌘⇧4 for + and ⌘⇧0 for =, where neither is a key of its own.
+	{ id = "zoom_in", title = "Zoom In", group = "Page", keys = { "mod++", "mod+shift++", "mod+=", "mod+shift+=" }, when = "page" },
 	{ id = "zoom_out", title = "Zoom Out", group = "Page", keys = "mod+-", when = "page" },
 	{ id = "zoom_reset", title = "Actual Size", group = "Page", keys = "mod+0", when = "page" },
 	{ id = "devtools", title = "Developer Tools", group = "Page", shown = "alt+mod+i", when = "page" },
@@ -169,7 +171,9 @@ function commands.help()
 		elseif command.id == "tab_last" then
 			group.items[#group.items + 1] = { title = "Go to Last Tab", keys = command.keys }
 		elseif not (command.hidden and command.id ~= "tab_1") then
-			group.items[#group.items + 1] = { title = command.title, keys = command.keys or command.shown }
+			-- A command of several keys is shown by the first, as a menu shows it.
+			local first = type(command.keys) == "table" and command.keys[1] or command.keys
+			group.items[#group.items + 1] = { title = command.title, keys = first or command.shown }
 		end
 	end
 	return groups
