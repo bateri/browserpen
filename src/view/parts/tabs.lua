@@ -47,9 +47,15 @@ function tabs.status_of(tab)
 	return tab.state and tab.state.status or "starting"
 end
 
+-- A tab made again from what the program kept (`tabs.restore`) has the title it had until its browser has
+-- loaded the page (`browse.told`) and says one of its own.
 function tabs.title_of(tab)
 	local url = tabs.url_of(tab)
-	return address.title_of(url, tab.state and tab.state.title)
+	local title = tab.state and tab.state.title
+	if title == nil or title == "" then
+		title = tab.title
+	end
+	return address.title_of(url, title)
 end
 
 -- A tab, last or after the tab `after`, with the address it is to open (none: blank). Its browser is
@@ -69,6 +75,99 @@ function tabs.make(url, after)
 	return tab
 end
 
+-- --- What the program keeps ---------------------------------------------------------------------------------
+
+-- The program keeps the tabs for as long as it runs, so that a view that starts again (this page is made
+-- from nothing then) finds them: for each tab its name, address, title and zoom, in the order of the strip,
+-- and the one in front. The page says them all each time any of them changes (`tabs.sync`).
+--
+-- A call is a message of 1 MiB at the most: an address longer than `URL_BYTES` is left out (that tab comes
+-- back blank) and a title is cut to `TITLE_CHARS` characters. What a tab made again had (`tab.title`,
+-- `tab.zoom`) stands in for what its browser has not said yet, until the page has loaded.
+local URL_BYTES = 2048
+local TITLE_CHARS = 200
+
+local function cut(title)
+	local length = utf8.len(title)
+	if length == nil then
+		return ""
+	elseif length > TITLE_CHARS then
+		return string.sub(title, 1, utf8.offset(title, TITLE_CHARS + 1) - 1)
+	end
+	return title
+end
+
+function tabs.saved()
+	local list = {}
+	for _, tab in S.tabs do
+		local entry = { key = tab.key }
+		local url = tab.opened and tabs.url_of(tab) or nil
+		if url ~= nil and #url <= URL_BYTES then
+			local state = tab.state
+			local title = state ~= nil and state.title or ""
+			if title == "" then
+				title = tab.title or ""
+			end
+			entry.url = url
+			entry.title = cut(title)
+			local zoom = tab.zoom or (state ~= nil and state.zoom) or nil
+			if zoom ~= nil and math.abs(zoom - 1) > 0.001 then
+				entry.zoom = zoom
+			end
+		end
+		list[#list + 1] = entry
+	end
+	return { tabs = list, active = S.active, serial = S.serial }
+end
+
+local function fingerprint(saved)
+	local parts = { tostring(saved.active), tostring(saved.serial) }
+	for _, entry in saved.tabs do
+		parts[#parts + 1] = table.concat({ entry.key, entry.url or "", entry.title or "", tostring(entry.zoom or "") }, "\0")
+	end
+	return table.concat(parts, "\1")
+end
+
+-- What the program was last told of the tabs.
+local told = nil
+
+-- Tells the program the tabs where they are not what it was last told. Before the page has the tabs the
+-- program had (`boot`), it has none to tell: that would take them from the program.
+function tabs.sync()
+	if S.boot == nil or #S.tabs == 0 then
+		return
+	end
+	local saved = tabs.saved()
+	local mark = fingerprint(saved)
+	if mark ~= told then
+		told = mark
+		kit.call("tabs", saved)
+	end
+end
+
+-- Makes the tabs the program kept: in their order, each to go to its address (its browser is asked once it
+-- is ready, with the zoom it had) and the one in front in front. The history of each browser starts again.
+function tabs.restore(saved)
+	local top = 0
+	S.tabs = {}
+	for _, entry in saved.tabs do
+		local tab = { key = entry.key, url = nil, state = nil, wanted = nil, opened = false }
+		if entry.url ~= nil and entry.url ~= "" then
+			tab.url, tab.wanted, tab.opened = entry.url, entry.url, true
+			tab.title, tab.zoom = entry.title, entry.zoom
+		end
+		table.insert(S.tabs, tab)
+		local number = tonumber(string.match(entry.key, "^tab%-(%d+)$"))
+		if number ~= nil and number > top then
+			top = number
+		end
+	end
+	S.serial = math.max(saved.serial or 0, top)
+	S.active = nil
+	local front = tabs.by_key(saved.active) or S.tabs[1]
+	tabs.select(front.key)
+end
+
 -- Puts the keyboard where the tab in front wants it: in its browser, or in the address field of a
 -- blank one (selected, for the address to be written at once).
 function tabs.focus()
@@ -79,6 +178,10 @@ function tabs.focus()
 	if tabs.blank(tab) then
 		act.focus_address()
 	else
+		-- What was being written in the address field is dropped with the keyboard (the suggestions of it
+		-- do not wait for a press that is not coming).
+		S.typed = false
+		S.cursor = nil
 		kit.gather(u:focus(tab.key))
 	end
 end
@@ -105,10 +208,6 @@ function tabs.open(url, options)
 	end
 	return tab
 end
-		-- What was being written in the address field is dropped with the keyboard (the suggestions of it
-		-- do not wait for a press that is not coming).
-		S.typed = false
-		S.cursor = nil
 
 -- Closes the tab `key`. The tab that takes its place is the one after it, else the one before; the
 -- last tab is replaced by a blank one, so that there is always a tab (⌃Q ends the program). The

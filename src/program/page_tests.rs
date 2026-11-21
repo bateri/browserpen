@@ -22,6 +22,7 @@ use pencere_view::{
 use crate::machine::{Listener, Machine};
 use crate::session::Session;
 use crate::state::history::History;
+use crate::state::tabs::{Tab, TabSet};
 
 /// A page as wide as the docs' pictures, and one as narrow as a pane of 80 columns.
 pub(crate) const WIDE: (f32, f32) = (1100.0, 720.0);
@@ -385,6 +386,148 @@ fn the_address_on_the_command_line_opens_in_the_first_tab() {
         "{:?}",
         asks(&page)
     );
+}
+
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
+fn the_tabs_are_the_same_when_the_view_starts_again_over_the_same_program() {
+    let stand = Stand::with(&[(3000, "next-server"), (5173, "vite")]);
+    let session = session_over(stand, History::memory(), Some("3000"));
+    let mut page = open_with(&session, WIDE, None, true).expect("opens");
+    // Three tabs: the first at the command line's address and shown at 150%, the second at another,
+    // and a blank one put between them, the second in front.
+    ready(&mut page, "tab-1", "", "");
+    tell(&mut page, "tab-1", |state| {
+        state.url = "http://localhost:3000/".to_owned();
+        state.title = "App".to_owned();
+        state.zoom = 1.5;
+    });
+    page.press("ctrl+t").expect("a new tab");
+    write_address(&mut page, "5173");
+    ready(&mut page, "tab-2", "", "");
+    tell(&mut page, "tab-2", |state| {
+        state.url = "http://localhost:5173/".to_owned();
+        state.title = "Vite".to_owned();
+    });
+    page.press("ctrl+t").expect("a new tab");
+    page.press("ctrl+shift+page_up").expect("left");
+    page.press("ctrl+page_down").expect("next");
+    let tab = |key: &str, url: Option<&str>, title: &str, zoom: Option<f64>| Tab {
+        key: key.to_owned(),
+        url: url.map(str::to_owned),
+        title: title.to_owned(),
+        zoom,
+    };
+    let kept = TabSet {
+        tabs: vec![
+            tab("tab-1", Some("http://localhost:3000/"), "App", Some(1.5)),
+            tab("tab-3", None, "", None),
+            tab("tab-2", Some("http://localhost:5173/"), "Vite", None),
+        ],
+        active: Some("tab-2".to_owned()),
+        serial: 3,
+    };
+    page.wait_for(WITHIN, |_| session.tabs.kept().as_ref() == Some(&kept))
+        .unwrap_or_else(|_| panic!("the program kept {:?}", session.tabs.kept()));
+    drop(page);
+
+    // The view starts again from nothing, over the program that goes on.
+    let mut page = open_with(&session, WIDE, None, true).expect("opens again");
+    let strip = ["tab-1", "tab-3", "tab-2"].map(|key| x_of(&page, key));
+    assert!(strip[0] < strip[1] && strip[1] < strip[2], "{strip:?}");
+    assert!(
+        page.says("App") && page.says("Vite") && page.says("New Tab"),
+        "{}",
+        said(&page)
+    );
+    assert_eq!(keyboard(&page), format!("{:?}", Id::named("tab-2")));
+    let made: BTreeSet<_> = page
+        .browsers()
+        .iter()
+        .map(|browser| format!("{:?}", browser.id))
+        .collect();
+    let wanted: BTreeSet<_> = ["tab-1", "tab-2"]
+        .map(|key| format!("{:?}", Id::named(key)))
+        .into();
+    assert_eq!(made, wanted, "a blank tab has no browser");
+    // Each goes to its address when its browser is ready, the first at the size it had; the command
+    // line's address is not sent again.
+    ready(&mut page, "tab-1", "", "");
+    ready(&mut page, "tab-2", "", "");
+    assert_eq!(
+        asked_of(&page, "tab-1")
+            .into_iter()
+            .filter(|ask| matches!(ask, BrowserAsk::Go(_) | BrowserAsk::Zoom(_)))
+            .collect::<Vec<_>>(),
+        [
+            BrowserAsk::Go("http://localhost:3000/".to_owned()),
+            BrowserAsk::Zoom(1.5)
+        ]
+    );
+    assert!(
+        went_to(&page, "tab-2", "http://localhost:5173/"),
+        "{:?}",
+        asks(&page)
+    );
+    assert!(
+        !asks(&page).iter().any(|(tab, _)| tab.contains("tab-4")),
+        "{:?}",
+        asks(&page)
+    );
+    // The browsers are ready and have not said where they are: the program has what it had, the titles
+    // and the size of the first among them. Where a load fails they stay as they were.
+    page.advance(0.5).expect("settled");
+    assert_eq!(session.tabs.kept().as_ref(), Some(&kept));
+    tell(&mut page, "tab-1", |state| {
+        state.url = "http://localhost:3000/".to_owned();
+        state.error = Some(BrowserError {
+            url: "http://localhost:3000/".to_owned(),
+            code: -102,
+            message: "Connection refused".to_owned(),
+        });
+    });
+    page.advance(0.5).expect("settled");
+    assert_eq!(session.tabs.kept().as_ref(), Some(&kept));
+    // The browsers load them and say where they are, at what size: the program has what it had.
+    tell(&mut page, "tab-1", |state| {
+        state.url = "http://localhost:3000/".to_owned();
+        state.title = "App".to_owned();
+        state.zoom = 1.5;
+    });
+    tell(&mut page, "tab-2", |state| {
+        state.url = "http://localhost:5173/".to_owned();
+        state.title = "Vite".to_owned();
+    });
+    page.advance(0.5).expect("settled");
+    assert_eq!(session.tabs.kept().as_ref(), Some(&kept));
+}
+
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
+fn a_long_title_is_cut_and_an_address_too_long_is_left_out_before_the_program_is_told() {
+    let (_stand, session, mut page) = at_a_page();
+    tell(&mut page, "tab-1", |state| {
+        state.url = "http://localhost:3000/".to_owned();
+        state.title = "é".repeat(500);
+    });
+    page.wait_for(WITHIN, |_| {
+        session
+            .tabs
+            .kept()
+            .is_some_and(|set| set.tabs[0].title.chars().count() == 200)
+    })
+    .unwrap_or_else(|_| panic!("the title was cut: {:?}", session.tabs.kept()));
+    tell(&mut page, "tab-1", |state| {
+        state.url = format!("http://localhost:3000/?q={}", "a".repeat(3000));
+        state.title = "App".to_owned();
+    });
+    page.wait_for(WITHIN, |_| {
+        session
+            .tabs
+            .kept()
+            .is_some_and(|set| set.tabs[0].url.is_none())
+    })
+    .unwrap_or_else(|_| panic!("the address was left out: {:?}", session.tabs.kept()));
 }
 
 #[test]
@@ -1333,6 +1476,26 @@ fn a_click_on_a_suggestion_goes_there_before_or_after_the_keyboard_leaves_the_fi
 
 #[test]
 #[ignore = "opens the kit's interpreter: make test-page"]
+fn the_suggestions_do_not_wait_when_the_page_itself_takes_the_keyboard_to_another_tab() {
+    let (_stand, _session, mut page) = at_a_page();
+    page.press("ctrl+t").expect("a new tab");
+    write_address(&mut page, "5173");
+    ready(&mut page, "tab-2", "", "");
+    tell(&mut page, "tab-2", |state| {
+        state.url = "http://localhost:5173/".to_owned();
+        state.title = "Vite".to_owned();
+    });
+    page.press("cmd+l").expect("address");
+    page.fill("address/field", "30").expect("typed");
+    page.advance(0.2).expect("settled");
+    assert!(page.says(":3000"), "{}", said(&page));
+    // ⌃1 brings the first tab in front: what was written goes with the keyboard, and no press is coming.
+    page.press("ctrl+1").expect("tab one");
+    assert!(!page.says(":3000"), "{}", said(&page));
+}
+
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
 fn the_suggestions_the_keyboard_left_go_when_the_press_is_elsewhere_or_does_not_come() {
     // A press on the page's own parts that is not on a row closes the card, and goes nowhere.
     let (_stand, _session, mut page) = at_a_page();
@@ -1373,26 +1536,6 @@ fn the_suggestions_the_keyboard_left_go_when_the_press_is_elsewhere_or_does_not_
         .expect("a click in the browser");
     page.advance(1.0).expect("a second");
     assert!(!page.says(":5173"), "{}", said(&page));
-#[test]
-#[ignore = "opens the kit's interpreter: make test-page"]
-fn the_suggestions_do_not_wait_when_the_page_itself_takes_the_keyboard_to_another_tab() {
-    let (_stand, _session, mut page) = at_a_page();
-    page.press("ctrl+t").expect("a new tab");
-    write_address(&mut page, "5173");
-    ready(&mut page, "tab-2", "", "");
-    tell(&mut page, "tab-2", |state| {
-        state.url = "http://localhost:5173/".to_owned();
-        state.title = "Vite".to_owned();
-    });
-    page.press("cmd+l").expect("address");
-    page.fill("address/field", "30").expect("typed");
-    page.advance(0.2).expect("settled");
-    assert!(page.says(":3000"), "{}", said(&page));
-    // ⌃1 brings the first tab in front: what was written goes with the keyboard, and no press is coming.
-    page.press("ctrl+1").expect("tab one");
-    assert!(!page.says(":3000"), "{}", said(&page));
-}
-
     assert_eq!(page.field("address/field"), Some("localhost:3000"));
 }
 

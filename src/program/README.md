@@ -6,11 +6,11 @@ asks it to; the browsing itself is the host's browsers' and the page's (`src/vie
 ```
 main.rs         the entry: reads the command line, makes the session, gives the calls to `serve`
 command_line.rs `browserpen [URL] [--profile NAME]`
-session.rs      what the calls share: the profile, the address asked for, the machine, the history
+session.rs      what the calls share: the profile, the address asked for, the machine, the history, the tabs
 icons.rs        the app's icons, carried in the file
 api/            everything the page talks to the program about (docs/calls.md); it knows the page
 machine/        the machine's listening ports and whether one answers; knows nothing of the page
-state/          the addresses a profile has been to; same
+state/          the addresses a profile has been to, and the tabs the page has open (in memory); same
 ```
 
 `api/` is the only place that builds a call's answer, member by member from what `machine/` and

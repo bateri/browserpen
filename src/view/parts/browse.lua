@@ -190,7 +190,12 @@ function browse.told(tab, state)
 		local url = tab.wanted
 		tab.wanted = nil
 		ask(tab, { go = url })
+		-- A tab made again from what the program kept goes back to the size it was shown at.
+		if tab.zoom ~= nil then
+			ask(tab, { zoom = tab.zoom })
+		end
 	elseif state.status == "unsupported" and tab.wanted ~= nil then
+		tab.zoom = nil
 		-- The browser of a tab is made when the tab gets its address, so that a host that shows none says
 		-- so after the address was asked for: it opens in the person's own browser then.
 		local url = tab.wanted
@@ -204,6 +209,11 @@ function browse.told(tab, state)
 	end
 	if not state.loading and state.error == nil and address.is_page(state.url) and (before == nil or before.url ~= state.url or before.title ~= state.title or before.loading) then
 		visited(tab, state)
+	end
+	-- A tab made again from what the program kept has its old title and size until the page is loaded: where
+	-- the browser says them, they are its own (and where the load failed they stay, as the tab's).
+	if tab.reported and not state.loading and state.error == nil then
+		tab.title, tab.zoom = nil, nil
 	end
 	if S.active == tab.key then
 		act.fill_address()

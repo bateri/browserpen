@@ -339,7 +339,7 @@ local function hand(reply, at)
 	return reply
 end
 
-local function handle(event)
+local function handle_event(event)
 	local kind = event.type
 	if kind == "browser" then
 		local tab = tabs.by_key(event.browser)
@@ -411,6 +411,13 @@ local function handle(event)
 	return kit.take(reply)
 end
 
+local function handle(event)
+	local reply = handle_event(event)
+	-- What the tabs came to is told to the program, which keeps them for a view that starts again.
+	tabs.sync()
+	return reply
+end
+
 -- --- Starting ----------------------------------------------------------------------------------------------------------
 
 -- How often the ports are asked for while they are shown (a blank tab, or an address being written).
@@ -455,8 +462,15 @@ kit.call("boot", {}, function(boot, err)
 	S.boot = boot
 	S.ports = boot.ports or {}
 	S.recent = boot.recent or {}
-	local start = boot.start ~= nil and address.resolve(boot.start) or nil
-	tabs.open(start)
+	-- A view that starts again finds the tabs the program kept; the address of the command line is of the
+	-- first view alone (the program says it once).
+	if boot.tabs ~= nil and #boot.tabs.tabs > 0 then
+		tabs.restore(boot.tabs)
+	else
+		local start = boot.start ~= nil and address.resolve(boot.start) or nil
+		tabs.open(start)
+	end
+	tabs.sync()
 	pencere.time.after(PORTS_EVERY, poll)
 	return true
 end)

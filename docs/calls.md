@@ -8,8 +8,9 @@ program, and the host's browsers, for things).
 What the page shows of the web is not here: each tab is a browser of the terminal's
 (`pencere.browser`), which loads and draws the pages, and the page and the host talk about it in the
 kit's own words (`browser` events, `browser = { ... }` asks in a reply). The program never sees a web
-page, an address typed or a click; it knows the machine's ports and the addresses the profile has been
-to.
+page, an address typed or a click; it knows the machine's ports, the addresses the profile has been
+to and the tabs the page has open (their addresses, titles and sizes), which it keeps in memory for a
+view that starts again.
 
 **Errors.** A call that cannot be done answers with an error: `bad-params` (the params are not what
 the call takes: a member it does not know, a value out of range), `not-found` (no such call),
@@ -27,14 +28,31 @@ What the page needs before it draws, once. Params: none.
   "profile": "default",
   "start": "localhost:3000",
   "ports": [ { "port": 3000, "name": "node" }, { "port": 5173, "name": "vite" } ],
-  "recent": [ { "url": "http://localhost:3000/", "title": "Dashboard" } ]
+  "recent": [ { "url": "http://localhost:3000/", "title": "Dashboard" } ],
+  "tabs": {
+    "tabs": [
+      { "key": "tab-1", "url": "http://localhost:3000/", "title": "Dashboard", "zoom": 1.25 },
+      { "key": "tab-3" },
+      { "key": "tab-2", "url": "http://localhost:5173/", "title": "Vite" }
+    ],
+    "active": "tab-2",
+    "serial": 3
+  }
 }
 ```
 
 `profile` is the name the browsers keep what sites store under (`--profile`, `default` where none was
 given). `start` is the address the command line gave, as it was typed, and is missing where it gave
-none: the page makes an address of it as it does of what the person types. `ports` is `ports` below and
-`recent` is the profile's recent addresses, the latest first.
+none: the page makes an address of it as it does of what the person types. It is in the answer to the
+program's first `boot` only: the address of the command line is for the first view, and a view that
+starts again (the connection to a server came back, the terminal made the view anew) does not open it
+again. `ports` is `ports` below and `recent` is the profile's recent addresses, the latest first.
+
+`tabs` is what the page last said with `tabs` below, and is missing where it has said nothing (the first
+view, or one that was made again before its first tab was told): the page makes those tabs again, in
+that order, each going to its own address (a tab with no `url` is blank), the one named by `active` in
+front, and names the next tab by `serial`. The history behind a tab (Back and Forward) is its browser's
+and starts again.
 
 ### `ports`
 
@@ -76,6 +94,29 @@ there moves to the front; at most 200 are kept, on the machine the program runs 
 profile's own file). Params: `{ "url": "http://localhost:3000/", "title": "Dashboard" }` (`title` may be
 missing). Answers `{}`.
 
+### `tabs`
+
+The tabs the page has open, in the order of the strip: the page says all of them each time any of them
+changes (a tab opened, closed, moved or brought to the front, an address or a title reached, a zoom
+set), and the program keeps what it was last told in memory, not on a disk: when the program ends the
+tabs end with it, and a program that is run again begins with none. At most 200 tabs are kept (see Limits).
+Params:
+
+```json
+{
+  "tabs": [
+    { "key": "tab-1", "url": "http://localhost:3000/", "title": "Dashboard", "zoom": 1.25 },
+    { "key": "tab-3" }
+  ],
+  "active": "tab-1",
+  "serial": 3
+}
+```
+
+`key` names the tab (and its browser); `url`, `title` and `zoom` (only where the page is not shown at its
+own size) are missing for a tab that has had no address yet, and `title` where the page has none.
+`active` is the key of the tab in front and `serial` the number the next tab is named by. Answers `{}`.
+
 ### `quit`
 
 Ends browserpen: a page of the kit has no close of its own, its view is the program's to end. Params:
@@ -85,4 +126,8 @@ page says to the person.
 ## Limits
 
 An answer is a few hundred bytes at most (the ports are asked for by a page that lists a few dozen at
-most), so no call comes near the kit's limits.
+most), so no call comes near the kit's limits, with one exception: the tabs, which `tabs` and the `tabs`
+of `boot` carry. A message is 1 MiB at the most in the kit; at most 200 tabs are kept, an address longer
+than 2048 bytes is left out (that tab comes back blank) and a title is cut to 200 characters, which is
+about 600 KB for the most there can be. The page does the same before it says them, and the program holds
+to it for what it is told.

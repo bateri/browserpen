@@ -12,6 +12,10 @@
   are those of programs you started (on a Mac, apps and the system are left out, but not Python, Docker
   or OrbStack), by the program's name or the script it runs. Tabs move with `⌃⇧PgUp` and `⌃⇧PgDn`,
   and what a tab's menu does is in the command list too.
+- **The tabs come back when the view starts again** (the connection to a server dropped and came
+  back, the terminal opened the view anew), while browserpen goes on: each tab at its address and
+  size, in its place, the one in front in front. Each page loads again and its Back and Forward
+  start over; when browserpen ends the tabs end with it.
 - **`browserpen [URL] [--profile NAME]`.** `3000` and `:3000` are `localhost:3000`; words that are not
   an address are a search. What the sites keep stays under the profile from one run to the next.
 - **A page that did not load says why,** and where the address is a port nothing listens on, that
