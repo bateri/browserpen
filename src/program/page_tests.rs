@@ -1777,3 +1777,14 @@ fn the_palette_opened_again_starts_empty_whatever_was_written_in_it_before() {
         page.advance(0.2).expect("settled");
     }
 }
+
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
+fn a_click_in_the_address_field_gives_the_whole_address_selected_as_the_key_for_it_does() {
+    let (_stand, _session, mut page) = at_a_page();
+    assert_eq!(page.field("address/field"), Some("localhost:3000"));
+    page.click("address/field").expect("a click in the field");
+    page.advance(0.1).expect("filled");
+    assert_eq!(page.field("address/field"), Some("http://localhost:3000/"));
+    assert_eq!(page.field_selection("address/field"), Some(0..22));
+}
