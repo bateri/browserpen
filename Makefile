@@ -1,0 +1,204 @@
+# browserpen is one native file: the program (src/program/, Rust, on the pencere crate) with the page
+# (src/view/, a page of pencere's kit) and the pictures (src/assets/) carried in it by build.rs. The
+# gate and `make dev` are here.
+.PHONY: pin fmt lint test test-page test-features test-tools check-timing shots check build pencere-src pencere fake-host pencere-ref pencere-dir dev dist sums release-prepare release publish
+
+# pencere is pinned in one place, Cargo.lock (Cargo.toml names the commit): the crate the program is
+# built on is of it, and so are the `pencere` command `make dev` runs browserpen under and `make sums`
+# signs a release with, and the stand-in terminal the program's tests run it in, which are built from
+# it in PENCERE_CACHE, below. To work against a checkout you are changing, say so; one that is not at
+# Cargo.lock's ref is said to be so, and used:
+#
+#   make dev PENCERE_SRC=../pencere
+# The ref is the commit Cargo.lock takes it at, or the tag of the crates' release it takes.
+PENCERE_REF = $(shell awk '/^name = "pencere"$$/ { getline v; getline s; gsub(/version = |"/, "", v); if (s ~ /^source = "registry/) print "crates-v" v; else { sub(/.*\#/, "", s); sub(/"$$/, "", s); print s } exit }' Cargo.lock)
+# Every pen, and every worktree of one, built on the same ref shares one checkout of pencere and its
+# target, in PENCERE_HOME (~/.cache/pencere-build, or under XDG_CACHE_HOME): a folder for each ref,
+# made whole once and never changed after. Cargo locks a target that two builds share.
+PENCERE_HOME ?= $(or $(XDG_CACHE_HOME),$(HOME)/.cache)/pencere-build
+PENCERE_CACHE = $(PENCERE_HOME)/$(PENCERE_REF)
+PENCERE_SRC ?= $(PENCERE_CACHE)
+PENCERE ?= $(PENCERE_SRC)/target/release/pencere
+PENCERE_GIT = https://github.com/bateri/pencere
+
+# The stand-in terminal the program's tests run browserpen in (FAKE_HOST): the one `make fake-host`
+# builds at Cargo.lock's pencere.
+FAKE_HOST ?= $(PENCERE_CACHE)/target/debug/pencere-fake-host
+
+# pin: main is built on a pencere anyone can fetch, the release Cargo.lock names. A branch that waits
+# for a pencere not pushed yet takes it from a checkout on this machine with a [patch] of Cargo.toml;
+# that section is refused on main and on what is to be merged into it.
+pin:
+	@if grep -q '^\[patch' Cargo.toml; then \
+		branch="$$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"; \
+		if [ "$$branch" = main ] || [ "$${GITHUB_REF:-}" = refs/heads/main ] || [ "$${GITHUB_BASE_REF:-}" = main ]; then \
+			echo "pin: Cargo.toml takes pencere from a [patch]: main is built on a pushed pencere (move the version in Cargo.toml, drop the patch)"; exit 1; \
+		fi; \
+		echo "pin: Cargo.toml takes pencere from a [patch] ($$branch): main will refuse it"; \
+	fi
+
+fmt:
+	cargo fmt
+
+lint:
+	cargo fmt -- --check
+	cargo clippy --locked --all-targets -- -D warnings
+
+# The program's tests: its own, and the ones that run it in a pane under the stand-in terminal. Nothing
+# in them is skipped; a stand-in that is not there stops the run and says which.
+test:
+	FAKE_HOST="$(FAKE_HOST)" cargo test --locked
+
+# The page's tests: src/view/ run as a terminal runs it, on pencere's host with no screen
+# (pencere-drive), with the program's own handlers in the same process (src/program/page_tests.rs),
+# over a fixture machine. Each compiles and runs the kit's interpreter, so they are `cargo test`'s
+# ignored ones, run here; a few at a time. A call of the page is held to 10 s here, not to the kit's
+# 250 ms, which is the wall clock's: a runner under load takes many times what one at rest does, and
+# a test of what the page does should not fail for that. check-timing is the strict one (below).
+test-page:
+	cargo test --locked --bin browserpen -- page_tests:: --ignored --test-threads=2
+
+# check-timing runs the page's tests with every call of the page held to the kit's 250 ms
+# (CALL_MS=125 for half of it), as a terminal holds it. Not part of the gate: it measures the
+# machine as much as the page, so run it on one at rest.
+CALL_MS ?= 250
+check-timing:
+	BROWSERPEN_CALL_MS=$(CALL_MS) cargo test --locked --bin browserpen -- page_tests:: --ignored --test-threads=2
+
+# shots draws the pictures of target/shots/ from the page as it is, over a stand-in machine (never the
+# machine's own ports), in the fonts of this machine (macOS: SF Mono, or Menlo, and SF): not part
+# of the gate, which needs no font of the system.
+shots:
+	cargo test --locked --bin browserpen page_shots:: -- --ignored
+
+# test-tools runs the tests of the installer (install.sh) against a directory that stands in for
+# GitHub: nothing in them reaches the network, and the release checks (tools/release-files.mjs),
+# against a directory of their own.
+test-tools:
+	node --test test/install.test.mjs test/release.test.mjs
+
+# test-features: the file is built in two types, with the screen of its own (the default) and without it
+# (`--no-default-features`, the smaller). The second is built, linted and tested too, and what the file
+# is made of is held: no code generator (`cranelift-codegen`) in the tree of either type, and no
+# `pencere-tui` in the one without the screen. A file that is shipped is built in a run of cargo of its
+# own, as `cargo build` does here: what `cargo test` builds with (its dev-dependencies) has the code
+# generator in it again.
+test-features:
+	cargo clippy --locked --no-default-features --all-targets -- -D warnings
+	cargo test --locked --no-default-features --bin browserpen
+	@tree="$$(cargo tree --locked -p browserpen -e normal)" || exit 1; \
+	if printf '%s\n' "$$tree" | grep -q 'cranelift-codegen'; then echo "test-features: the code generator (cranelift-codegen) is in the tree of browserpen"; exit 1; fi
+	@tree="$$(cargo tree --locked -p browserpen -e normal --no-default-features)" || exit 1; \
+	if printf '%s\n' "$$tree" | grep -q 'cranelift-codegen\|pencere-tui v'; then echo "test-features: the build without the screen has the code generator or pencere-tui in its tree"; exit 1; fi
+
+# check is the gate: the pin of pencere, formatting, lints, the program's tests, the page's tests, the
+# installer's tests.
+check: pin lint test test-page test-features test-tools
+
+# build makes target/release/browserpen, the program for this machine, with the page in it.
+build:
+	cargo build --locked --release
+
+# pencere-src makes PENCERE_SRC ready: fetched at Cargo.lock's ref when it is the cache. The fetch
+# is made in a folder of its own and moved to PENCERE_CACHE when it is whole, so that two pens that
+# fetch the same ref together cannot spoil it: the one that is late throws its copy away.
+pencere-src:
+	@command -v cargo >/dev/null || { echo "pencere: cargo is not installed: pencere is built from its source (https://rustup.rs)"; exit 1; }
+	@ref="$(PENCERE_REF)"; test -n "$$ref" || { echo "pencere: Cargo.lock takes no pencere"; exit 1; }; \
+	if [ "$(PENCERE_SRC)" = "$(PENCERE_CACHE)" ]; then \
+		if [ ! -f "$(PENCERE_CACHE)/.git/pencere-fetched" ]; then \
+			[ ! -e "$(PENCERE_CACHE)" ] || { echo "pencere: $(PENCERE_CACHE) was not fetched whole: remove it"; exit 1; }; \
+			echo "pencere: fetching $(PENCERE_GIT) at $$ref into $(PENCERE_CACHE)"; \
+			mkdir -p "$(PENCERE_HOME)" && tmp=$$(mktemp -d "$(PENCERE_HOME)/.fetch.XXXXXX") || exit 1; \
+			trap 'rm -rf "$$tmp"' EXIT HUP INT TERM; \
+			git init -q "$$tmp" && \
+			git -C "$$tmp" fetch -q --depth 1 "$(PENCERE_GIT)" "$$ref" && \
+			git -C "$$tmp" checkout -q --detach FETCH_HEAD && \
+			echo "$$ref" > "$$tmp/.git/pencere-fetched" || exit 1; \
+			if [ ! -f "$(PENCERE_CACHE)/.git/pencere-fetched" ]; then \
+				mv "$$tmp" "$(PENCERE_CACHE)" || exit 1; \
+				rm -rf "$(PENCERE_CACHE)/$${tmp##*/}"; \
+			fi; \
+		fi; \
+	else \
+		head=$$(git -C "$(PENCERE_SRC)" rev-parse HEAD 2>/dev/null); \
+		want=$$(git -C "$(PENCERE_SRC)" rev-parse -q --verify "$$ref^{commit}" 2>/dev/null); \
+		[ -n "$$head" ] && [ "$$head" = "$$want" ] || \
+			echo "pencere: $(PENCERE_SRC) is at $${head:-no commit}, not at $$ref (Cargo.lock) that browserpen is built with"; \
+	fi
+
+# pencere builds the `pencere` command in PENCERE_SRC.
+pencere: pencere-src
+	cd "$(PENCERE_SRC)" && cargo build --release -p pencere-cli
+
+# fake-host builds the stand-in terminal in PENCERE_SRC.
+fake-host: pencere-src
+	cd "$(PENCERE_SRC)" && cargo build -p pencere-fake-host
+
+# pencere-ref says which pencere Cargo.lock takes.
+pencere-ref:
+	@echo "$(PENCERE_REF)"
+
+# pencere-dir says where the checkout of that pencere and its target are, fetched yet or not.
+pencere-dir:
+	@echo "$(PENCERE_CACHE)"
+
+# dev runs browserpen from its files in this pane, in a terminal that hosts pencere (bateri): the page
+# is shown again when a file of src/view/ or src/assets/ changes, and the program built and run again
+# when one of it does.
+dev: pencere
+	"$(PENCERE)" dev
+
+# dist makes the programs for one target (TARGET, a Rust target triple) into dist/release: Apple
+# silicon Macs and both Linux architectures, the Linux ones linked statically with musl (bateri, the
+# terminal that shows the page, runs on Apple silicon only). Each target has two files, both built
+# with the profile of the file that is shipped (`--profile dist`, which `make build` is not): the
+# one with the drawing in it, browserpen-<version>-<target>, which `install.sh` takes, and the smaller one
+# without it (`--no-default-features`), browserpen-no-terminal-<version>-<target>, which bateri takes,
+# for it draws the page itself. The two builds write the same target/<target>/dist/browserpen, so each
+# is copied as soon as it is made. Each target is built on a machine of its own, with that target
+# added to the toolchain; `make sums` then names the six where they are together, and signs the
+# app.json that says what they are.
+TARGETS = aarch64-apple-darwin aarch64-unknown-linux-musl x86_64-unknown-linux-musl
+PACKAGE_VERSION = $(shell sed -n 's/^version = "\(.*\)"$$/\1/p' Cargo.toml | head -n 1)
+
+dist:
+	@test -n "$(TARGET)" || { echo "usage: make dist TARGET=<one of: $(TARGETS)>"; exit 2; }
+	mkdir -p dist/release
+	rm -f dist/release/browserpen-$(PACKAGE_VERSION)-$(TARGET) dist/release/browserpen-no-terminal-$(PACKAGE_VERSION)-$(TARGET)
+	cargo build --locked --profile dist --target $(TARGET)
+	cp target/$(TARGET)/dist/browserpen dist/release/browserpen-$(PACKAGE_VERSION)-$(TARGET)
+	cargo build --locked --profile dist --no-default-features --target $(TARGET)
+	cp target/$(TARGET)/dist/browserpen dist/release/browserpen-no-terminal-$(PACKAGE_VERSION)-$(TARGET)
+
+# sums has `pencere dist` write, from the six files of dist/release, their SHA256SUMS, the app.json
+# and its signature (it signs with the key `pencere key` made: ~/.config/pencere/signing.key, or the
+# one PENCERE_SIGNING_KEY names). A terminal that follows browserpen reads those two: app.json names the
+# file without the drawing for each target, for it draws the page itself. What the program needs
+# of its terminal in app.json comes from the program itself, that file of this machine's target,
+# started once. DIST_FLAGS goes to `pencere dist`: --base, --previous.
+#
+# On release day PENCERE must be a pencere that has `dist` and is the one Cargo.lock takes
+# (PENCERE_REF): `make pencere` builds it. A release made with another one has an app.json that
+# the pencere browserpen is built with did not write.
+DIST_FLAGS ?=
+sums:
+	@test -x "$(PENCERE)" || { echo "sums: no pencere at $(PENCERE): make pencere, or PENCERE=<a pencere command that has dist>"; exit 1; }
+	"$(PENCERE)" dist --files dist/release $(DIST_FLAGS) $(PACKAGE_VERSION)
+	@n=$$(grep -c . dist/release/SHA256SUMS); test "$$n" = 6 || { echo "sums: dist/release/SHA256SUMS names $$n files, not six: the pencere at $(PENCERE) does not take the -no-terminal- files; \`make pencere\` builds the one Cargo.lock takes"; exit 1; }
+	@cat dist/release/SHA256SUMS
+
+# release-prepare sets the version and dates the changelog's Unreleased section.
+release-prepare:
+	@test -n "$(VERSION)" || { echo "usage: make release-prepare VERSION=<x.y.z>"; exit 2; }
+	node tools/release.mjs prepare $(VERSION)
+
+# release runs the gate and the release checks (dist/release holds the nine files of this
+# version, made after the release commit), then tags. Nothing is pushed.
+release: check
+	node tools/release.mjs tag
+
+# publish pushes main and the tag, then makes the GitHub release with the nine files of
+# dist/release. Publishing: run on the maintainer's word.
+publish:
+	node tools/release.mjs publish

@@ -1,0 +1,84 @@
+[package]
+name = "browserpen"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+license = "GPL-3.0-or-later"
+description = "A web browser in the terminal pane: tabs, an address bar, and the pages of the machine the program runs on (localhost:3000 over ssh), kept per profile"
+repository = "https://github.com/bateri/browserpen"
+
+[[bin]]
+name = "browserpen"
+path = "src/program/main.rs"
+
+[dependencies]
+# The program's side of pencere, at the commit whose kit has the browser (`pencere.browser`, its
+# finding, zoom and keys): every pencere crate here is at this one `rev`, which Cargo.lock holds and
+# `make pencere`, `make fake-host` and `make dev` build the terminal from.
+pencere = { git = "https://github.com/bateri/pencere", rev = "5fc4b464a2c2f31e508775b9fb8fbf2a4a17198a" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# What the standard library does not say: the person's user id and the process calls of the ports.
+libc = "0.2"
+# The program's own screen where the terminal hosts no view: the page drawn as pictures in the terminal
+# it is started in, where that speaks the Kitty graphics protocol (the `terminal` feature). Built with
+# the interpreter compiled by the build (`precompile`) and no PDF reader: a browser's page shows
+# none, and neither the code generator nor the reader is then in the file.
+pencere-tui = { git = "https://github.com/bateri/pencere", rev = "5fc4b464a2c2f31e508775b9fb8fbf2a4a17198a", optional = true, default-features = false, features = ["precompile"] }
+
+[features]
+# Two builds: with the screen (the default: a terminal that does not host pencere but speaks the Kitty
+# graphics protocol shows the tabs and the address bar drawn as pictures, and an address opens in the
+# person's own browser), and without it (`--no-default-features`: the smaller file, for a terminal that
+# hosts pencere).
+default = ["terminal"]
+terminal = ["dep:pencere-tui"]
+
+[build-dependencies]
+pencere = { git = "https://github.com/bateri/pencere", rev = "5fc4b464a2c2f31e508775b9fb8fbf2a4a17198a" }
+
+[dev-dependencies]
+# Each test has a directory of its own as its home.
+tempfile = "3"
+# The page (src/view/) run as a terminal runs it, with no screen: the kit's interpreter and browsers
+# (the room a placeholder, the state the test gives it), a clock the test moves, and the program's
+# own handlers in this process (`program`); and pictures of it for the eye, in the fonts of the
+# machine (`shot`, `make shots`).
+pencere-drive = { git = "https://github.com/bateri/pencere", rev = "5fc4b464a2c2f31e508775b9fb8fbf2a4a17198a", features = ["program", "shot"] }
+# The names of the page's elements (`Id`).
+pencere-view = { git = "https://github.com/bateri/pencere", rev = "5fc4b464a2c2f31e508775b9fb8fbf2a4a17198a" }
+# The files of a page's bundle (`Assets`): a test's own script beside the page; and what a page's
+# calls are held to (`ModuleLimits`).
+pencere-sandbox = { git = "https://github.com/bateri/pencere", rev = "5fc4b464a2c2f31e508775b9fb8fbf2a4a17198a" }
+
+# The page tests compile the kit's interpreter to machine code, with wasmtime's code generator, as
+# each page opens; built without optimization (a debug build) that takes seconds. The generator and
+# what feeds it are optimized in the development profile too, as pencere's own workspace does:
+# compiled once, cached with the rest.
+[profile.dev.package.cranelift-codegen]
+opt-level = 2
+[profile.dev.package.cranelift-frontend]
+opt-level = 2
+[profile.dev.package.cranelift-entity]
+opt-level = 2
+[profile.dev.package.cranelift-bforest]
+opt-level = 2
+[profile.dev.package.regalloc2]
+opt-level = 2
+[profile.dev.package.wasmtime-internal-cranelift]
+opt-level = 2
+[profile.dev.package.wasmtime-environ]
+opt-level = 2
+[profile.dev.package.wasmparser]
+opt-level = 2
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "warn"
+
+# The profile of the file that is shipped: `cargo build --profile dist`, which `make dist` runs.
+[profile.dist]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
