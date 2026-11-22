@@ -59,6 +59,15 @@ local function card(tab)
 		local port = tab.nothing or tab.answers
 		local view = frame(false):child(kit.icon(port and "plug-off" or "alert-triangle", 24, "quiet"))
 		view:child(b.text("Couldn't load " .. address.display(state.error.url)):weight(600):wrap():max_w(420):align("center"))
+		if state.error.certificate ~= nil then
+			-- The site answered and the browser would not trust it: a development server's own certificate is
+			-- the usual one. Going on is the person's, for this site, until the host stops.
+			local host = address.site_of({ error = state.error }) or address.display(state.error.url)
+			view:child(sentence(host .. "'s certificate is not trusted (" .. state.error.certificate .. ")"))
+			return view:child(b.div():row():items_center():gap(8)
+				:child(action_button("card-reload", "Reload", commands.keys("reload")))
+				:child(action_button("card-proceed", "Continue Anyway")))
+		end
 		if tab.nothing then
 			view:child(sentence("Nothing is listening on :" .. tab.nothing .. " yet"))
 		elseif tab.answers then
@@ -122,6 +131,9 @@ function room.pressed(name)
 	local tab = tabs.active()
 	if name == "card-reload" then
 		browse.reload(tab, true)
+		return true
+	elseif name == "card-proceed" then
+		browse.proceed(tab)
 		return true
 	elseif name == "card-outside" then
 		act.run("open_outside")

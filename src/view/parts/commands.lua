@@ -60,6 +60,9 @@ local TABLE = {
 	{ id = "zoom_out", title = "Zoom Out", group = "Page", keys = "mod+-", when = "page" },
 	{ id = "zoom_reset", title = "Actual Size", group = "Page", keys = "mod+0", when = "page" },
 	{ id = "devtools", title = "Developer Tools", group = "Page", shown = "alt+mod+i", when = "page" },
+	-- Both are in the list only: no key is the one that empties what a person is signed in with.
+	{ id = "clear_cache", title = "Clear Cache", group = "Page", when = "ready" },
+	{ id = "clear_site", title = "Clear Site Data", group = "Page", when = "site" },
 	-- Where the host shows no browser, the page's address opens in the person's own.
 	{ id = "open_outside", title = "Open in Your Browser", group = "Page", when = "unsupported" },
 

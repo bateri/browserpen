@@ -126,7 +126,7 @@ local function parts(url)
 		return nil
 	end
 	local authority = string.match(rest, "^([^/?#]*)")
-	authority = string.gsub(authority, "^[^@]*@", "")
+	authority = string.gsub(authority, "^.*@", "")
 	return split(authority)
 end
 
@@ -142,6 +142,31 @@ end
 -- Whether `url` is one a page of the web is at, as a recent address: not a blank page.
 function address.is_page(url)
 	return url ~= nil and string.match(url, "^https?://") ~= nil
+end
+
+-- The name of the site an http(s) address is at, in lower case (no scheme or user), and the port the address
+-- names (nil where it names none), or nil.
+local function site_name(url)
+	url = string.lower(url or "")
+	if not address.is_page(url) then
+		return nil
+	end
+	return parts(url)
+end
+
+-- The site a browser is at, for what is done to "this site": the name of its page's address, or, where
+-- that is none (a load that failed leaves the browser at about:blank), of the address that failed; nil where
+-- neither is a page of the web; and the port that address names, if any (what is cleared is the name's, at every
+-- port). It is the host's rule too, so that what a person is asked about is what the host deletes.
+function address.site_of(state)
+	if state == nil then
+		return nil
+	end
+	local name, port = site_name(state.url)
+	if name == nil and state.error ~= nil then
+		name, port = site_name(state.error.url)
+	end
+	return name, port
 end
 
 -- What a tab is called: the page's title, else its address as it is read, else what a blank tab is.

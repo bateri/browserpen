@@ -73,6 +73,14 @@ function browse.command(tab, name)
 	end
 end
 
+-- Goes on to the page the browser did not load for its certificate: for as long as the host runs, for
+-- that site, and nowhere else (the host keeps it nowhere and tells no other computer).
+function browse.proceed(tab)
+	if tab ~= nil and tab.opened and tab.state ~= nil and tab.state.error ~= nil and tab.state.error.certificate ~= nil then
+		ask(tab, { command = "proceed" })
+	end
+end
+
 -- Loads the page again (`cache` false: not from what the browser keeps of it). A browser that crashed
 -- is made again by it.
 function browse.reload(tab, cache)
@@ -143,12 +151,15 @@ local function watch(tab, failed)
 	end
 	local function again()
 		local state = tab.state
-		if not tab.probing or tabs.by_key(tab.key) == nil or state == nil or state.error == nil or state.error.url ~= failed.url then
+		if not tab.probing or tabs.by_key(tab.key) == nil or state == nil or state.error == nil or state.error.url ~= failed.url or state.error.certificate ~= nil then
 			tab.probing = false
 			return nil
 		end
 		kit.call("probe", { port = port }, function(result, err)
-			if err or result == nil then
+			-- The answer is of the time it was asked: the browser may have told of another load since (a
+			-- certificate it did not trust, a page that loaded).
+			local now = tab.state
+			if err or result == nil or now == nil or now.error == nil or now.error.url ~= failed.url or now.error.certificate ~= nil then
 				return nil
 			end
 			local nothing, answers = nil, nil
@@ -202,7 +213,9 @@ function browse.told(tab, state)
 		tab.wanted = nil
 		browse.open_outside(url)
 	end
-	if state.error == nil then
+	if state.error == nil or state.error.certificate ~= nil then
+		-- Something answered, and the browser did not trust it: nothing is left to wait for (a probe that is
+		-- running ends at its next turn).
 		tab.nothing, tab.answers = nil, nil
 	else
 		watch(tab, state.error)

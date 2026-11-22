@@ -41,7 +41,9 @@ with a dot and no space is `https`, and anything else is a search.
 A blank tab (`⌃T`) lists the TCP ports the programs you started listen on (on a Mac, not the apps'),
 with the program's name, and the addresses you have been to (kept per profile, on the machine the program runs on). The arrow keys go
 through them and Enter goes to the one chosen. A page that did not load says why; where the address is
-a port nothing listens on, it says so, and says when something does.
+a port nothing listens on, it says so, and says when something does. Where a site's certificate is not
+trusted (a development server's own), it says so, with a Continue Anyway button that goes on to that site for as
+long as the terminal's browser runs, and for nothing else.
 
 ### Keys
 
@@ -62,13 +64,15 @@ Every key is on the screen: `F1` lists the commands, `⌘?` the keys.
 
 On a keyboard that is not a Mac's, Ctrl is what ⌘ is on a Mac. A web page that has a use for `⌘←`,
 `⌘F`, `Esc` or the zoom keys has it; the tab keys, `⌘L`, `⌘R` and `⌃Q` are always browserpen's. Duplicate Tab, Close Other Tabs, Close Tabs to
-the Right (also in a tab's menu) and Open in Your Browser are in the command list, `F1`.
+the Right (also in a tab's menu), Open in Your Browser, Clear Cache and Clear Site Data are in the command list,
+`F1`: Clear Cache empties what the browser keeps to load pages faster and loads the page again; Clear Site Data, after you confirm it,
+deletes the cookies and storage of the site you are at (every port of it) and signs you out of it.
 
 ### For agents and scripts
 
 In bateri, `bateri browser` reads and drives the browser of a pane from the command line (`text`,
-`snapshot`, `shot`, `open URL`, `click`, `type`, `back`, `reload`); `bateri browser text p9@prod` is
-the page of pane 9 on the server `prod`.
+`snapshot`, `shot`, `open URL`, `click`, `type`, `back`, `reload`, `console`, `clear --cache|--site`);
+`bateri browser text p9@prod` is the page of pane 9 on the server `prod`.
 
 ## License
 

@@ -45,6 +45,8 @@ local S = {
 	find = { open = false, query = { value = "" }, case = false },
 	-- What is over the page: "commands" (the palette) or "shortcuts", and the palette's state.
 	overlay = nil,
+	-- The question whether to clear a site's data, while it is asked: the tab, the site's name and whether its address names a port.
+	confirm = nil,
 	palette = { query = "", cursor = nil, field = { value = "" } },
 	toasts = {},
 	-- The tab whose address that did not load is on a port nothing listened on, and the port: the

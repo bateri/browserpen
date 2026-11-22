@@ -149,6 +149,57 @@ fn the_pictures_of_the_page() -> Result<(), Error> {
         save(&page, &fonts, "commands", width);
         page.press("escape")?;
 
+        // The commands that clear what a site keeps (in the list only), and the question before a site's
+        // data is cleared.
+        tell(&mut page, "tab-3", |state| {
+            state.url = "https://github.com/bateri/pencere".to_owned();
+            state.title = "bateri/pencere".to_owned();
+            state.back = true;
+        });
+        page.press("f1")?;
+        page.browser_unused("tab-3", "f1")?;
+        page.advance(0.3)?;
+        page.type_text("clear")?;
+        page.advance(0.4)?;
+        save(&page, &fonts, "commands-clear", width);
+        page.type_text(" site")?;
+        page.advance(0.2)?;
+        page.press("enter")?;
+        page.advance(0.4)?;
+        save(&page, &fonts, "clear-site-confirm", width);
+        page.press("escape")?;
+        page.advance(0.2)?;
+        // The same where the address names a port.
+        tell(&mut page, "tab-3", |state| {
+            state.url = "http://localhost:3000/".to_owned();
+            state.title = "Dashboard".to_owned();
+            state.back = true;
+        });
+        page.press("f1")?;
+        page.browser_unused("tab-3", "f1")?;
+        page.advance(0.3)?;
+        page.type_text("clear site")?;
+        page.advance(0.2)?;
+        page.press("enter")?;
+        page.advance(0.4)?;
+        save(&page, &fonts, "clear-site-confirm-port", width);
+        page.press("escape")?;
+        page.advance(0.2)?;
+
+        // A certificate the browser does not trust.
+        tell(&mut page, "tab-3", |state| {
+            state.url = "about:blank".to_owned();
+            state.back = true;
+            state.error = Some(BrowserError {
+                url: "https://localhost:8443/".to_owned(),
+                code: -202,
+                message: "The certificate is not valid".to_owned(),
+                certificate: Some("self-signed".to_owned()),
+            });
+        });
+        page.advance(0.3)?;
+        save(&page, &fonts, "certificate", width);
+
         // A load that failed.
         tell(&mut page, "tab-3", |state| {
             state.url = "https://nope.test/".to_owned();
@@ -158,6 +209,7 @@ fn the_pictures_of_the_page() -> Result<(), Error> {
                 url: "https://nope.test/".to_owned(),
                 code: -105,
                 message: "The server's name could not be found".to_owned(),
+                certificate: None,
             });
         });
         page.advance(0.3)?;
@@ -171,6 +223,7 @@ fn the_pictures_of_the_page() -> Result<(), Error> {
                 url: "http://localhost:4000/".to_owned(),
                 code: -102,
                 message: "Connection refused".to_owned(),
+                certificate: None,
             });
         });
         page.wait_for(std::time::Duration::from_secs(20), |page| {

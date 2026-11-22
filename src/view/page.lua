@@ -16,6 +16,7 @@ local suggest = require("./parts/suggest")
 local room = require("./parts/room")
 local find = require("./parts/find")
 local help = require("./parts/help")
+local confirm = require("./parts/confirm")
 
 local b, u, S, act, lib = kit.b, kit.u, kit.S, kit.act, kit.lib
 
@@ -51,6 +52,17 @@ commands.when = {
 	end,
 	page = function()
 		return (active_state())
+	end,
+	-- The browser is there to be asked (not starting, crashed or none), which a command to clear what it keeps is
+	-- not given to otherwise.
+	ready = function()
+		local opened, state = active_state()
+		return opened and state ~= nil and state.status == "ready"
+	end,
+	-- And it is at a site (a page of the web, or the address that did not load) whose data can be cleared.
+	site = function()
+		local opened, state = active_state()
+		return opened and state ~= nil and state.status == "ready" and confirm.site_of_tab(tabs.active()) ~= nil
 	end,
 	back = function()
 		local opened, state = active_state()
@@ -132,6 +144,13 @@ local function run(id, target)
 		browse.reload(tab, false)
 	elseif id == "back" or id == "forward" or id == "stop" or id == "devtools" then
 		browse.command(tab, id)
+	elseif id == "clear_cache" then
+		-- What the browser keeps is emptied and the page is loaded again without it: the host loads nothing
+		-- of itself, and a page already shown would go on with the scripts it has.
+		browse.command(tab, id)
+		browse.reload(tab, false)
+	elseif id == "clear_site" then
+		confirm.ask_site(tab)
 	elseif id == "zoom_in" then
 		browse.zoom(tab, 1)
 	elseif id == "zoom_out" then
@@ -224,6 +243,7 @@ local function render(size, now, reduce_motion)
 	root:child(find.view())
 	root:child(suggest.card())
 	help.view(root)
+	confirm.view(root)
 	if #S.toasts > 0 then
 		root:child(u:toasts("toasts", { items = S.toasts }))
 	end
@@ -244,6 +264,9 @@ local function on_action(action)
 	end
 	if reply == nil then
 		reply = help.action(action)
+	end
+	if reply == nil then
+		reply = confirm.action(action)
 	end
 	if reply == nil and action.from == "commands" and action.kind == "command" then
 		run(action.id)

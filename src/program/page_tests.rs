@@ -203,6 +203,17 @@ pub(crate) fn said(page: &Page) -> String {
     page.words().join("|")
 }
 
+/// The words of the page as one text, a line of a sentence that wraps after the one before it.
+fn spoken(page: &Page) -> String {
+    page.words().join(" ")
+}
+
+/// The words of the page run together: what a row of the list says, though the letters a search found in
+/// it are drawn in a word of their own.
+fn shown(page: &Page) -> String {
+    page.words().concat()
+}
+
 /// What the page has asked of its browsers, as `(tab, ask)`.
 pub(crate) fn asks(page: &Page) -> Vec<(String, BrowserAsk)> {
     page.browser_asks()
@@ -485,6 +496,7 @@ fn the_tabs_are_the_same_when_the_view_starts_again_over_the_same_program() {
             url: "http://localhost:3000/".to_owned(),
             code: -102,
             message: "Connection refused".to_owned(),
+            certificate: None,
         });
     });
     page.advance(0.5).expect("settled");
@@ -910,6 +922,7 @@ fn a_page_that_did_not_load_says_why_once_and_reload_asks_again() {
             url: "https://nope.test/".to_owned(),
             code: -105,
             message: "The server's name could not be found".to_owned(),
+            certificate: None,
         });
     });
     assert!(page.says("Couldn't load nope.test"), "{}", said(&page));
@@ -924,6 +937,293 @@ fn a_page_that_did_not_load_says_why_once_and_reload_asks_again() {
         "{:?}",
         asked_of(&page, "tab-1")
     );
+}
+
+/// A page whose tab 1 did not load `url` because the browser did not trust its certificate, `why`, as a
+/// development server's own is not trusted; the browser is left at `about:blank`, as a failed load leaves it.
+fn at_a_certificate_error(url: &str, why: &str) -> (Arc<Stand>, Arc<Session>, Page) {
+    let (stand, session, mut page) = at_a_page();
+    tell(&mut page, "tab-1", |state| {
+        state.url = "about:blank".to_owned();
+        state.error = Some(BrowserError {
+            url: url.to_owned(),
+            code: -202,
+            message: "The certificate is not valid".to_owned(),
+            certificate: Some(why.to_owned()),
+        });
+    });
+    page.advance(0.3).expect("settled");
+    (stand, session, page)
+}
+
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
+fn a_certificate_the_browser_does_not_trust_is_a_card_that_goes_on_only_when_the_person_presses_it()
+{
+    let (stand, _session, mut page) =
+        at_a_certificate_error("https://localhost:8443/", "self-signed");
+    assert!(
+        page.says("Couldn't load https://localhost:8443"),
+        "{}",
+        said(&page)
+    );
+    assert!(
+        page.says("localhost's certificate is not trusted (self-signed)"),
+        "{}",
+        said(&page)
+    );
+    assert!(
+        page.says("Continue Anyway") && page.says("Reload"),
+        "{}",
+        said(&page)
+    );
+    // Nothing is asked of the browser until the person presses it, and then once, with no address:
+    // the host knows which site it did not load.
+    assert!(
+        !asked_of(&page, "tab-1").contains(&BrowserAsk::Proceed),
+        "{:?}",
+        asked_of(&page, "tab-1")
+    );
+    page.click("card-proceed").expect("continue");
+    assert_eq!(
+        asked_of(&page, "tab-1")
+            .iter()
+            .filter(|ask| **ask == BrowserAsk::Proceed)
+            .count(),
+        1,
+        "{:?}",
+        asked_of(&page, "tab-1")
+    );
+    // Something answered on that port, so the page does not wait for it: no looking at the port, and
+    // not a word of "nothing is listening".
+    page.advance(4.0).expect("time passes");
+    assert!(!stand.probed().contains(&8443), "{:?}", stand.probed());
+    assert!(
+        !page.says("Nothing is listening") && !page.says("Something is listening"),
+        "{}",
+        said(&page)
+    );
+    // A load that failed for another reason has no way to go on.
+    tell(&mut page, "tab-1", |state| {
+        state.url = "about:blank".to_owned();
+        state.error = Some(BrowserError {
+            url: "https://nope.test/".to_owned(),
+            code: -105,
+            message: "The server's name could not be found".to_owned(),
+            certificate: None,
+        });
+    });
+    page.advance(0.3).expect("settled");
+    assert!(
+        page.says("Couldn't load nope.test") && !page.says("Continue Anyway"),
+        "{}",
+        said(&page)
+    );
+}
+
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
+fn a_port_that_was_waited_for_and_then_answers_with_a_certificate_stops_being_looked_at() {
+    // A port nothing listens on is looked at; when something answers, the page goes there again and the
+    // browser does not trust it: from then on there is nothing to wait for.
+    let (stand, _session, mut page) = at_a_page();
+    tell(&mut page, "tab-1", |state| {
+        state.url = "https://localhost:8443/".to_owned();
+        state.error = Some(BrowserError {
+            url: "https://localhost:8443/".to_owned(),
+            code: -102,
+            message: "Connection refused".to_owned(),
+            certificate: None,
+        });
+    });
+    page.wait_for(WITHIN, |page| page.says("Nothing is listening"))
+        .expect("the port is looked at");
+    stand.listen(8443, "server");
+    tell(&mut page, "tab-1", |state| {
+        state.url = "about:blank".to_owned();
+        state.error = Some(BrowserError {
+            url: "https://localhost:8443/".to_owned(),
+            code: -202,
+            message: "The certificate is not valid".to_owned(),
+            certificate: Some("self-signed".to_owned()),
+        });
+    });
+    page.advance(0.3).expect("settled");
+    assert!(
+        page.says("certificate is not trusted") && !page.says("Nothing is listening"),
+        "{}",
+        said(&page)
+    );
+    let probed = stand.probed().len();
+    page.advance(4.0).expect("time passes");
+    assert!(
+        stand.probed().len() <= probed + 1,
+        "{probed} then {:?}",
+        stand.probed()
+    );
+}
+
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
+fn the_cache_is_cleared_at_once_and_a_sites_data_only_after_the_person_confirms_it_by_the_sites_name()
+ {
+    let (_stand, _session, mut page) = at_a_page();
+    tell(&mut page, "tab-1", |state| {
+        state.url = "https://Shop.Test:8443/cart?x=1".to_owned();
+        state.title = "Cart".to_owned();
+    });
+    page.advance(0.3).expect("settled");
+    // Both are in the list of commands, and keys are beside neither.
+    key(&mut page, "f1");
+    page.advance(0.3).expect("drawn");
+    page.type_text("Clear").expect("typed");
+    page.advance(0.2).expect("settled");
+    assert!(
+        shown(&page).contains("Clear Cache") && shown(&page).contains("Clear Site Data"),
+        "{}",
+        said(&page)
+    );
+    page.press("escape").expect("escape");
+    assert!(!shown(&page).contains("Clear Cache"), "{}", said(&page));
+    // The cache is asked of the browser at once; nothing of a site's data yet.
+    from_the_palette(&mut page, "Clear Cache");
+    let asked = asked_of(&page, "tab-1");
+    assert!(!asked.contains(&BrowserAsk::ClearSiteData), "{asked:?}");
+    // ... and the page is loaded again without what was kept, after it: the host loads nothing of itself.
+    let at = |ask: &BrowserAsk| asked.iter().position(|one| one == ask);
+    assert!(
+        at(&BrowserAsk::ClearCache).is_some()
+            && at(&BrowserAsk::ClearCache) < at(&BrowserAsk::Reload { cache: false }),
+        "{asked:?}"
+    );
+    // A site's data: the question names the site, lower case, and says that the port is not what is
+    // cleared where the address names one.
+    from_the_palette(&mut page, "Clear Site Data");
+    assert!(
+        page.says("Clear shop.test's data?")
+            && spoken(&page).contains(
+                "Every port of shop.test shares its cookies, so this clears them all. \
+                 This signs you out of shop.test."
+            ),
+        "{}",
+        said(&page)
+    );
+    assert!(!asked_of(&page, "tab-1").contains(&BrowserAsk::ClearSiteData));
+    // Enter is "Cancel": a key held down is never what signs a person out. Escape gives it up too.
+    page.press("enter").expect("enter");
+    page.advance(0.2).expect("settled");
+    assert!(!page.says("Clear shop.test's data?"), "{}", said(&page));
+    from_the_palette(&mut page, "Clear Site Data");
+    page.press("escape").expect("escape");
+    page.advance(0.2).expect("settled");
+    assert!(!page.says("Clear shop.test's data?"), "{}", said(&page));
+    assert!(
+        !asked_of(&page, "tab-1").contains(&BrowserAsk::ClearSiteData),
+        "{:?}",
+        asked_of(&page, "tab-1")
+    );
+    // The question is about the site it names: a page that goes on to another site of itself ends it, and
+    // nothing of the other site is cleared.
+    from_the_palette(&mut page, "Clear Site Data");
+    tell(&mut page, "tab-1", |state| {
+        state.url = "https://other.test/".to_owned();
+    });
+    page.advance(0.3).expect("settled");
+    assert!(!page.says("Clear shop.test's data?"), "{}", said(&page));
+    assert!(
+        !asked_of(&page, "tab-1").contains(&BrowserAsk::ClearSiteData),
+        "{:?}",
+        asked_of(&page, "tab-1")
+    );
+    tell(&mut page, "tab-1", |state| {
+        state.url = "https://Shop.Test:8443/cart?x=1".to_owned();
+        state.title = "Cart".to_owned();
+    });
+    page.advance(0.3).expect("settled");
+    // Only its own button asks.
+    from_the_palette(&mut page, "Clear Site Data");
+    page.click("clear_site/action/clear").expect("clear");
+    page.advance(0.2).expect("settled");
+    assert!(
+        asked_of(&page, "tab-1").contains(&BrowserAsk::ClearSiteData),
+        "{:?}",
+        asked_of(&page, "tab-1")
+    );
+    assert!(!page.says("Clear shop.test's data?"), "{}", said(&page));
+}
+
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
+fn a_sites_data_is_offered_where_the_browser_is_at_a_site_or_the_address_that_failed_is_one() {
+    let (_stand, _session, mut page) = at_a_page();
+    // A blank page is at no site: the cache can be cleared (it is the engine's, of every site), a site's
+    // data cannot.
+    tell(&mut page, "tab-1", |state| {
+        state.url = "about:blank".to_owned();
+    });
+    page.advance(0.3).expect("settled");
+    key(&mut page, "f1");
+    page.advance(0.3).expect("drawn");
+    page.type_text("Clear").expect("typed");
+    page.advance(0.2).expect("settled");
+    assert!(
+        shown(&page).contains("Clear Cache") && !shown(&page).contains("Clear Site Data"),
+        "{}",
+        said(&page)
+    );
+    page.press("escape").expect("escape");
+    // Neither is offered where the browser is not there to be asked.
+    page.browser_state(
+        "tab-1",
+        BrowserState::with_status(BrowserState::CRASHED, Some("The browser stopped.")),
+    )
+    .expect("told");
+    page.advance(0.3).expect("settled");
+    key(&mut page, "f1");
+    page.advance(0.3).expect("drawn");
+    page.type_text("Clear").expect("typed");
+    page.advance(0.2).expect("settled");
+    assert!(
+        !shown(&page).contains("Clear Cache") && !shown(&page).contains("Clear Site Data"),
+        "{}",
+        said(&page)
+    );
+    page.press("escape").expect("escape");
+    // A load that failed leaves the browser at `about:blank`: the site is the address that failed, the
+    // same site the host clears.
+    tell(&mut page, "tab-1", |state| {
+        state.url = "about:blank".to_owned();
+        state.error = Some(BrowserError {
+            url: "https://Nope.Test:9000/x".to_owned(),
+            code: -202,
+            message: "The certificate is not valid".to_owned(),
+            certificate: Some("expired".to_owned()),
+        });
+    });
+    page.advance(0.3).expect("settled");
+    from_the_palette(&mut page, "Clear Site Data");
+    assert!(
+        page.says("Clear nope.test's data?")
+            && spoken(&page).contains("Every port of nope.test shares its cookies"),
+        "{}",
+        said(&page)
+    );
+    page.press("escape").expect("escape");
+    // An address with no port has nothing to say of ports.
+    tell(&mut page, "tab-1", |state| {
+        state.url = "https://github.com/bateri".to_owned();
+    });
+    page.advance(0.3).expect("settled");
+    from_the_palette(&mut page, "Clear Site Data");
+    assert!(
+        page.says("Clear github.com's data?")
+            && spoken(&page).contains(
+                "Cookies, storage and service workers. This signs you out of github.com."
+            ),
+        "{}",
+        said(&page)
+    );
+    assert!(!spoken(&page).contains("Every port"), "{}", said(&page));
 }
 
 #[test]
@@ -961,6 +1261,7 @@ fn a_port_nothing_listens_on_is_said_so_and_the_page_goes_there_by_itself_once_s
         url: "http://localhost:4000/".to_owned(),
         code: -102,
         message: "Connection refused".to_owned(),
+        certificate: None,
     };
     let goes = |page: &Page| {
         asked_of(page, "tab-1")
@@ -1211,6 +1512,7 @@ fn nothing_of_the_bars_moves_whatever_the_page_is_doing() {
                 url: "http://localhost:4000/".to_owned(),
                 code: -102,
                 message: "Connection refused".to_owned(),
+                certificate: None,
             });
         });
         page.wait_for(WITHIN, |page| page.says("Nothing is listening"))
@@ -1227,6 +1529,7 @@ fn nothing_of_the_bars_moves_whatever_the_page_is_doing() {
                 url: "https://nope.test/".to_owned(),
                 code: -105,
                 message: "The server's name could not be found".to_owned(),
+                certificate: None,
             });
         });
         states.push(("load error", places(&page)));
