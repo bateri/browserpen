@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-23
+
 ### Added
 
 - **A web browser for the terminal pane.** Tabs, an address bar, back, forward, reload, find and zoom.
