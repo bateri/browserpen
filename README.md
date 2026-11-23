@@ -45,6 +45,10 @@ a port nothing listens on, it says so, and says when something does. Where a sit
 trusted (a development server's own), it says so, with a Continue Anyway button that goes on to that site for as
 long as the terminal's browser runs, and for nothing else.
 
+A link you open from a terminal's pane (⌘-click in bateri) opens in browserpen on that machine: a new tab
+of the browserpen already open beside it, or a browserpen of its own. An address dropped on the page opens
+in a new tab, and a tab dragged out of the view hands its address to the application it is dropped on.
+
 ### Keys
 
 Every key is on the screen: `F1` lists the commands, `⌘?` the keys.

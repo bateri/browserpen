@@ -4,6 +4,10 @@
 
 ### Added
 
+- **Links open in browserpen.** An address a terminal hands the running browserpen (a link followed in
+  another pane) is a new tab, in front, at once; one dropped on the page is a new tab too. The release says
+  that browserpen takes an address (`opens: ["url"]`), so a terminal can start it for one.
+- **A tab can be dragged out** of the view: dropped on another application, it hands over its address.
 - **A web browser for the terminal pane.** Tabs, an address bar, back, forward, reload, find and zoom.
   Pages load from the machine browserpen runs on, so `localhost:3000` over ssh is that server's own.
 - **A new tab suggests where to go.** It lists the ports your programs listen on and the pages you

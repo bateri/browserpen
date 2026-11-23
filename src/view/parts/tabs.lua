@@ -325,13 +325,26 @@ local function tip_of(tab)
 	return title
 end
 
+-- What dragging a tab out of the view hands to the system: its address, as the link it is (a browser takes it
+-- and opens it there) and as the words of it (a pane of a terminal takes those). A tab with no address of a web
+-- page, or one the system's drag would not carry (a line of printable ASCII, at most 8192 bytes), hands nothing.
+local MOST_CARRIED = 8192
+
+local function carry_of(tab)
+	local url = tabs.url_of(tab)
+	if not address.is_page(url) or #url > MOST_CARRIED or string.find(url, "[^\33-\126]") ~= nil then
+		return nil
+	end
+	return { text = url, url = url }
+end
+
 function tabs.view()
 	local t = u.theme
 	local items = {}
 	for _, tab in S.tabs do
 		-- No icon: a tab starts with its title (a site's icon is not given the page, and an empty place or a
 		-- dot in its stead says nothing). The page that loads is shown by the bar's line.
-		items[#items + 1] = { key = tab.key, title = tabs.title_of(tab), tip = tip_of(tab) }
+		items[#items + 1] = { key = tab.key, title = tabs.title_of(tab), tip = tip_of(tab), carry = carry_of(tab) }
 	end
 	local strip = u:tabs("tabs", { items = items, active = S.active, reorder = true })
 	local plus = u:icon_button("new-tab", {

@@ -176,7 +176,9 @@ dist:
 # one PENCERE_SIGNING_KEY names). A terminal that follows browserpen reads those two: app.json names the
 # file without the drawing for each target, for it draws the page itself. What the program needs
 # of its terminal in app.json comes from the program itself, that file of this machine's target,
-# started once. DIST_FLAGS goes to `pencere dist`: --base, --previous.
+# started once. `--opens url` says in it that browserpen takes an address, so that a terminal can open a
+# link in it: a pencere that does not have the flag stops here, and the pin in Cargo.toml moves to one that
+# has it first. DIST_FLAGS goes to `pencere dist`: --base, --previous.
 #
 # On release day PENCERE must be a pencere that has `dist` and is the one Cargo.lock takes
 # (PENCERE_REF): `make pencere` builds it. A release made with another one has an app.json that
@@ -184,7 +186,7 @@ dist:
 DIST_FLAGS ?=
 sums:
 	@test -x "$(PENCERE)" || { echo "sums: no pencere at $(PENCERE): make pencere, or PENCERE=<a pencere command that has dist>"; exit 1; }
-	"$(PENCERE)" dist --files dist/release $(DIST_FLAGS) $(PACKAGE_VERSION)
+	"$(PENCERE)" dist --files dist/release --opens url $(DIST_FLAGS) $(PACKAGE_VERSION)
 	@n=$$(grep -c . dist/release/SHA256SUMS); test "$$n" = 6 || { echo "sums: dist/release/SHA256SUMS names $$n files, not six: the pencere at $(PENCERE) does not take the -no-terminal- files; \`make pencere\` builds the one Cargo.lock takes"; exit 1; }
 	@cat dist/release/SHA256SUMS
 

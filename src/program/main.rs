@@ -53,7 +53,10 @@ fn options(session: &Arc<Session>, fallen_back: &Arc<Mutex<Option<u8>>>) -> Opti
         .app(pencere::app!())
         .program("browserpen")
         // What a terminal writes above the view.
-        .title("Browser");
+        .title("Browser")
+        // An address the person opens in the terminal while browserpen runs is handed to it, to open in
+        // a tab of its own (the page subscribes to `pencere.take`).
+        .takes(&[pencere::TakeKind::Url]);
     for icon in icons::all() {
         options = options.icon(icon);
     }

@@ -89,6 +89,7 @@ function release(version = VERSION, { bytes = (target, drawing) => program(versi
       }),
     ),
     previous: [],
+    opens: ["url"],
   };
   const write = {
     sums: (map = sums) =>
@@ -274,6 +275,16 @@ describe("the files of a release", () => {
     const { key: _, ...withoutKey } = second.manifest;
     second.write.manifest(withoutKey);
     assert.throws(() => check(second.out, VERSION), refusal("does not name an ed25519 key"));
+  });
+
+  it("are refused unless app.json says that browserpen opens an address", () => {
+    const { out, manifest, write } = release();
+    const { opens, ...without } = manifest;
+    assert.deepEqual(opens, ["url"]);
+    for (const bad of [undefined, [], ["file"], ["url", "url"], ["url", "file"], "url"]) {
+      write.manifest(bad === undefined ? without : { ...without, opens: bad });
+      assert.throws(() => check(out, VERSION), refusal('does not say "opens"'), JSON.stringify(bad));
+    }
   });
 
   it("are refused when app.json is of another app, another version or other targets", () => {

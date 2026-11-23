@@ -96,6 +96,15 @@ local function call(method, params, done)
 	end)
 end
 
+-- Hears a topic of the program: `on_value(value)` runs for each value it pushes, and what it gathered goes
+-- out with the reply it returns (as for `call`).
+local function subscribe(topic, params, on_value)
+	return b.subscribe(topic, params, function(value)
+		local reply = on_value(value)
+		return take(reply == nil and true or reply)
+	end)
+end
+
 -- --- Words and pieces ------------------------------------------------------------------------------
 
 -- One of the pictures of src/assets/icons (Tabler's, MIT), `size` points, in a colour of the theme.
@@ -140,6 +149,7 @@ return {
 	gather = gather,
 	take = take,
 	call = call,
+	subscribe = subscribe,
 	icon = icon,
 	spinner = spinner,
 	keys_of = keys_of,

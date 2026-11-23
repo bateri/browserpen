@@ -88,6 +88,11 @@ function checkManifest(dir, version, listed, trust) {
   if (manifest.version !== version) {
     refuse(`dist/release/app.json is of version ${manifest.version}, not ${version}: make sums again`);
   }
+  // The release says that browserpen takes an address (`apps.md` Section 4.7): a terminal opens a link in
+  // it by this alone.
+  if (!Array.isArray(manifest.opens) || manifest.opens.length !== 1 || manifest.opens[0] !== "url") {
+    refuse('dist/release/app.json does not say "opens": ["url"]: make sums again');
+  }
   const files = manifest.files ?? {};
   if (Object.keys(files).sort().join("\n") !== [...TARGETS].sort().join("\n")) {
     refuse("dist/release/app.json does not name exactly the three targets");

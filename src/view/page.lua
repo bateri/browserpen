@@ -351,6 +351,10 @@ local function handle_event(event)
 			kit.toast("That is not an address a browser can open.", "warn")
 		end
 		return kit.take(true)
+	elseif kind == "link_dropped" then
+		-- An address dropped on the page, from another application or another pane: a tab of its own, in front.
+		tabs.open(event.url)
+		return kit.take(true)
 	elseif kind == "browser_window" then
 		-- A link that opens a window: a tab of its own, behind this one where the person asked for that.
 		tabs.open(event.url, { after = event.browser, background = event.background })
@@ -446,6 +450,17 @@ local function poll()
 	return nil
 end
 
+-- What the terminal hands browserpen while it runs (the topic `pencere.take` of the program): an address
+-- the person opened, from a link in another pane, is a tab of its own, in front, at once.
+local function on_take(take)
+	if take.url == nil then
+		return nil
+	end
+	tabs.open(take.url)
+	tabs.sync()
+	return true
+end
+
 kit.call("boot", {}, function(boot, err)
 	if err then
 		S.boot_error = err.message or err.code
@@ -464,6 +479,9 @@ kit.call("boot", {}, function(boot, err)
 	end
 	tabs.sync()
 	pencere.time.after(PORTS_EVERY, poll)
+	-- Only now: an address that came before the boot waits at the program for this subscription, and the
+	-- first tab (the command line's) is already there to be followed by it.
+	kit.subscribe("pencere.take", {}, on_take)
 	return true
 end)
 

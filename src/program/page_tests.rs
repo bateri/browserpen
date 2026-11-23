@@ -13,11 +13,11 @@ use std::collections::BTreeSet;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
-use pencere::ViewControl;
+use pencere::{Take, ViewControl};
 use pencere_drive::headless::{Error, Focus, Headless, InProcess};
 use pencere_view::{
-    BrowserAsk, BrowserError, BrowserFound, BrowserState, Id, Key, KeyConvention, MenuEntry, Mods,
-    Point,
+    BrowserAsk, BrowserError, BrowserFound, BrowserState, Carry, Id, Key, KeyConvention, MenuEntry,
+    Mods, Point,
 };
 
 use crate::machine::{Listener, Machine};
@@ -697,6 +697,75 @@ fn a_link_that_opens_a_window_is_a_tab_and_behind_this_one_where_that_was_asked(
     ready(&mut page, "tab-3", "", "");
     assert!(went_to(&page, "tab-3", "https://example.org/b"));
     assert_eq!(keyboard(&page), format!("{:?}", Id::named("tab-3")));
+}
+
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
+fn an_address_the_terminal_hands_the_program_is_a_tab_in_front_at_once() {
+    let (_stand, _session, mut page) = at_a_page();
+    // No wait for the page's ports poll: the tab is there as the address is handed over.
+    assert!(
+        page.hand_over(&Take::Url("https://example.org/a".into()))
+            .expect("handed")
+    );
+    ready(&mut page, "tab-2", "", "");
+    assert!(
+        went_to(&page, "tab-2", "https://example.org/a"),
+        "{:?}",
+        asks(&page)
+    );
+    assert_eq!(keyboard(&page), format!("{:?}", Id::named("tab-2")));
+    // Another comes after it, and the first tab is still where it was.
+    assert!(
+        page.hand_over(&Take::Url("http://localhost:5173/".into()))
+            .expect("handed")
+    );
+    ready(&mut page, "tab-3", "", "");
+    assert!(went_to(&page, "tab-3", "http://localhost:5173"));
+    page.advance(0.3).expect("settled");
+    assert_eq!(keyboard(&page), format!("{:?}", Id::named("tab-3")));
+    assert!(page.says("App"), "{}", said(&page));
+    // A file or a folder is not what it takes: it is not heard.
+    assert!(
+        !page
+            .hand_over(&Take::Folder("/srv".into()))
+            .expect("handed")
+    );
+}
+
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
+fn an_address_dropped_on_the_page_is_a_tab_in_front() {
+    let (_stand, _session, mut page) = at_a_page();
+    page.drop_link("address/field", "https://example.org/dropped")
+        .expect("dropped");
+    ready(&mut page, "tab-2", "", "");
+    assert!(
+        went_to(&page, "tab-2", "https://example.org/dropped"),
+        "{:?}",
+        asks(&page)
+    );
+    assert_eq!(keyboard(&page), format!("{:?}", Id::named("tab-2")));
+}
+
+#[test]
+#[ignore = "opens the kit's interpreter: make test-page"]
+fn a_tab_dragged_out_of_the_view_carries_its_address() {
+    let (_stand, _session, mut page) = at_a_page();
+    // A tab with no address yet has nothing to hand to the system.
+    page.press("ctrl+t").expect("a new tab");
+    page.drag_out("tabs/tab/tab-2", Point::new(1500.0, 400.0))
+        .expect("dragged");
+    assert!(page.carries().is_empty(), "{:?}", page.carries());
+    page.drag_out("tabs/tab/tab-1", Point::new(1500.0, 400.0))
+        .expect("dragged");
+    let [carry] = page.carries() else {
+        panic!("one drag out of the view: {:?}", page.carries());
+    };
+    assert_eq!(
+        carry.carry,
+        Carry::text("http://localhost:3000/").url("http://localhost:3000/")
+    );
 }
 
 /// A key that is not one the page keeps for itself (`always`): where the browser has the keyboard it is

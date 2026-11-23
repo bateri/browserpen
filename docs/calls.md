@@ -123,6 +123,18 @@ Ends browserpen: a page of the kit has no close of its own, its view is the prog
 none. Answers `{}`, or `{ "unsupported": "..." }` in a terminal that cannot close the view, which the
 page says to the person.
 
+## Topic
+
+### `pencere.take`
+
+What the terminal hands the program while it runs. The program says in its `open` that it takes an
+address (`takes: ["url"]`), and a terminal that has a link for it, followed in another pane of the same
+tab, hands it over instead of starting another browserpen. The page subscribes once, after `boot`
+(params: none), and is pushed each address as it comes: `{ "url": "https://example.org/a" }`, `http` or
+`https`. The program's library holds the few that came before the page subscribed and gives them to it
+first. The page opens each as a tab of its own, in front, at once. The program does not read the
+address: it does not keep it either, and `tabs` says it with the others once the tab is open.
+
 ## Limits
 
 An answer is a few hundred bytes at most (the ports are asked for by a page that lists a few dozen at
