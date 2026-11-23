@@ -725,7 +725,7 @@ fn an_address_the_terminal_hands_the_program_is_a_tab_in_front_at_once() {
     page.advance(0.3).expect("settled");
     assert_eq!(keyboard(&page), format!("{:?}", Id::named("tab-3")));
     assert!(page.says("App"), "{}", said(&page));
-    // A file or a folder is not what it takes: it is not heard.
+    // A file or a folder is not what the program said it takes: the library does not hand it to the page.
     assert!(
         !page
             .hand_over(&Take::Folder("/srv".into()))

@@ -189,6 +189,9 @@ local function booting()
 	if S.boot_error then
 		box:child(b.text("The program did not answer"):weight(650))
 		box:child(b.text(S.boot_error):color("dim"):wrap():max_w(520):align("center"))
+		for _, url in S.early or {} do
+			box:child(b.text("Not opened: " .. url):color("dim"):wrap():max_w(520):align("center"))
+		end
 	else
 		box:child(kit.spinner(20, "quiet"))
 	end
@@ -286,6 +289,23 @@ local function on_action(action)
 	return reply
 end
 
+-- What comes from outside (an address a terminal hands browserpen, a link dropped on the page) is a tab of its
+-- own. In front, as a rule: what is open over the page goes first, so that a palette or a question is not left
+-- over a tab it was not about. Behind this one while the person is writing an address, so that what they wrote
+-- and the keyboard stay where they are; a toast says where it went.
+local function arrive(url)
+	if S.typed then
+		tabs.open(url, { background = true })
+		kit.toast("Opened behind this tab", "info", 2)
+		return
+	end
+	if S.overlay ~= nil then
+		help.hide()
+	end
+	S.confirm = nil
+	tabs.open(url)
+end
+
 -- A key no component took: Esc, which stops what the page is doing, from the narrowest to the widest.
 local function key(event)
 	if event.key == "escape" and (event.mods == nil or not (event.mods.command or event.mods.control or event.mods.alt or event.mods.shift)) then
@@ -353,7 +373,14 @@ local function handle_event(event)
 		return kit.take(true)
 	elseif kind == "link_dropped" then
 		-- An address dropped on the page, from another application or another pane: a tab of its own, in front.
-		tabs.open(event.url)
+		-- One that is dropped before the boot has answered waits for it: the first tabs are made by it, and
+		-- the person's would be put under them or lost.
+		if S.boot == nil then
+			S.early = S.early or {}
+			table.insert(S.early, event.url)
+		else
+			arrive(event.url)
+		end
 		return kit.take(true)
 	elseif kind == "browser_window" then
 		-- A link that opens a window: a tab of its own, behind this one where the person asked for that.
@@ -456,14 +483,26 @@ local function on_take(take)
 	if take.url == nil then
 		return nil
 	end
-	tabs.open(take.url)
+	arrive(take.url)
 	tabs.sync()
+	return true
+end
+
+-- Where the boot failed there are no tabs: what is handed or dropped is said under the error, so that the
+-- person has the address still.
+local function on_take_unopened(take)
+	if take.url == nil then
+		return nil
+	end
+	S.early = S.early or {}
+	table.insert(S.early, take.url)
 	return true
 end
 
 kit.call("boot", {}, function(boot, err)
 	if err then
 		S.boot_error = err.message or err.code
+		kit.subscribe("pencere.take", {}, on_take_unopened)
 		return true
 	end
 	S.boot = boot
@@ -477,6 +516,11 @@ kit.call("boot", {}, function(boot, err)
 		local start = boot.start ~= nil and address.resolve(boot.start) or nil
 		tabs.open(start)
 	end
+	-- What was dropped on the page before this: tabs of their own, after the first ones.
+	for _, url in S.early or {} do
+		tabs.open(url)
+	end
+	S.early = nil
 	tabs.sync()
 	pencere.time.after(PORTS_EVERY, poll)
 	-- Only now: an address that came before the boot waits at the program for this subscription, and the
