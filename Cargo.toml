@@ -15,7 +15,7 @@ path = "src/program/main.rs"
 # The program's side of pencere, at the commit whose kit has the browser (`pencere.browser`, its
 # finding, zoom and keys): every pencere crate here is at this one `rev`, which Cargo.lock holds and
 # `make pencere`, `make fake-host` and `make dev` build the terminal from.
-pencere = { git = "https://github.com/bateri/pencere", rev = "a3e52d2562de18afd71e90934e3ca3fba6d907ab" }
+pencere = { git = "https://github.com/bateri/pencere", rev = "f59fe58d15c9740c2d0f42d3ec1711cc87f68745" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # What the standard library does not say: the person's user id and the process calls of the ports.
@@ -24,7 +24,7 @@ libc = "0.2"
 # it is started in, where that speaks the Kitty graphics protocol (the `terminal` feature). Built with
 # the interpreter compiled by the build (`precompile`) and no PDF reader: a browser's page shows
 # none, and neither the code generator nor the reader is then in the file.
-pencere-tui = { git = "https://github.com/bateri/pencere", rev = "a3e52d2562de18afd71e90934e3ca3fba6d907ab", optional = true, default-features = false, features = ["precompile"] }
+pencere-tui = { git = "https://github.com/bateri/pencere", rev = "f59fe58d15c9740c2d0f42d3ec1711cc87f68745", optional = true, default-features = false, features = ["precompile"] }
 
 [features]
 # Two builds: with the screen (the default: a terminal that does not host pencere but speaks the Kitty
@@ -35,7 +35,7 @@ default = ["terminal"]
 terminal = ["dep:pencere-tui"]
 
 [build-dependencies]
-pencere = { git = "https://github.com/bateri/pencere", rev = "a3e52d2562de18afd71e90934e3ca3fba6d907ab" }
+pencere = { git = "https://github.com/bateri/pencere", rev = "f59fe58d15c9740c2d0f42d3ec1711cc87f68745" }
 
 [dev-dependencies]
 # Each test has a directory of its own as its home.
@@ -44,12 +44,12 @@ tempfile = "3"
 # (the room a placeholder, the state the test gives it), a clock the test moves, and the program's
 # own handlers in this process (`program`); and pictures of it for the eye, in the fonts of the
 # machine (`shot`, `make shots`).
-pencere-drive = { git = "https://github.com/bateri/pencere", rev = "a3e52d2562de18afd71e90934e3ca3fba6d907ab", features = ["program", "shot"] }
+pencere-drive = { git = "https://github.com/bateri/pencere", rev = "f59fe58d15c9740c2d0f42d3ec1711cc87f68745", features = ["program", "shot"] }
 # The names of the page's elements (`Id`).
-pencere-view = { git = "https://github.com/bateri/pencere", rev = "a3e52d2562de18afd71e90934e3ca3fba6d907ab" }
+pencere-view = { git = "https://github.com/bateri/pencere", rev = "f59fe58d15c9740c2d0f42d3ec1711cc87f68745" }
 # The files of a page's bundle (`Assets`): a test's own script beside the page; and what a page's
 # calls are held to (`ModuleLimits`).
-pencere-sandbox = { git = "https://github.com/bateri/pencere", rev = "a3e52d2562de18afd71e90934e3ca3fba6d907ab" }
+pencere-sandbox = { git = "https://github.com/bateri/pencere", rev = "f59fe58d15c9740c2d0f42d3ec1711cc87f68745" }
 
 # The page tests compile the kit's interpreter to machine code, with wasmtime's code generator, as
 # each page opens; built without optimization (a debug build) that takes seconds. The generator and
@@ -82,15 +82,3 @@ inherits = "release"
 lto = "fat"
 codegen-units = 1
 strip = "symbols"
-
-# A pencere that is not pushed yet, from the checkout beside this one (what the terminal hands a running
-# program, `link_dropped`, a tab that carries). `make pin` accepts it on this branch and refuses it on
-# main: when pencere is pushed, move the `rev` above to it and drop this section.
-[patch."https://github.com/bateri/pencere"]
-pencere = { path = "../pencere-linkler/program" }
-pencere-wire = { path = "../pencere-linkler/wire" }
-pencere-view = { path = "../pencere-linkler/kit/view" }
-pencere-editor = { path = "../pencere-linkler/kit/editor" }
-pencere-sandbox = { path = "../pencere-linkler/kit/sandbox" }
-pencere-drive = { path = "../pencere-linkler/kit/drive" }
-pencere-tui = { path = "../pencere-linkler/host/tui" }
